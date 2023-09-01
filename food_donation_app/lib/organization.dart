@@ -20,13 +20,15 @@ class OrganizationAppState extends ChangeNotifier {
         restaurantName: 'Cafe World',
         category: 'Coffee',
         status: 'Open',
-        icon: const Icon(Icons.star)),
+        icon: const Icon(Icons.star),
+        time: '12:00 PM'),
     Request(
         date: '12/12/2021',
         restaurantName: 'Tasty Bites',
         category: 'Indian',
         status: 'Closed',
-        icon: const Icon(Icons.favorite)),
+        icon: const Icon(Icons.favorite),
+        time: '12:00 PM')
   ];
   var requests = <Request>[
     Request(
@@ -34,19 +36,22 @@ class OrganizationAppState extends ChangeNotifier {
         restaurantName: 'Cafe World',
         category: 'Coffee',
         status: 'Open',
-        icon: const Icon(Icons.star)),
+        icon: const Icon(Icons.star),
+        time: '12:00 PM'),
     Request(
         date: '12/12/2021',
         restaurantName: 'Tasty Bites',
         category: 'Indian',
         status: 'Closed',
-        icon: const Icon(Icons.favorite)),
+        icon: const Icon(Icons.favorite),
+        time: '12:00 PM'),
     Request(
         date: '11/04/2021',
         restaurantName: 'Pizza Hut',
         category: 'Italian',
         status: 'Waiting',
-        icon: const Icon(Icons.local_dining)),
+        icon: const Icon(Icons.local_dining),
+        time: '12:00 PM'),
   ];
 
   var employees = <Employee>[
@@ -61,6 +66,28 @@ class OrganizationAppState extends ChangeNotifier {
         phone: '0987654321',
         status: 'Inactive'),
   ];
+
+  void addRequest(Request request) {
+    requests.add(request);
+    notifyListeners();
+  }
+
+  void cancelRequest(Request request) {
+    requests.remove(request);
+    request.status = 'Cancelled';
+    history.add(request);
+    notifyListeners();
+  }
+
+  void fireEmployee(Employee employee) {
+    employees.remove(employee);
+    notifyListeners();
+  }
+
+  void addEmployee(Employee employee) {
+    employees.add(employee);
+    notifyListeners();
+  }
 }
 
 class OrgNavigationBar extends StatefulWidget {
@@ -128,10 +155,7 @@ class RequestPage extends StatelessWidget {
             children: [
               for (var request in appState.requests)
                 RequestTile(
-                  icon: request.icon,
-                  status: request.status,
-                  name: request.restaurantName,
-                  category: request.category,
+                  request: request,
                 ),
             ],
           ),
@@ -143,7 +167,11 @@ class RequestPage extends StatelessWidget {
               padding: const EdgeInsets.all(20.0),
               child: FloatingActionButton(
                 onPressed: () {
-                  // Handle button tap
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (context) => NewRequest(appState: appState)),
+                  );
                 },
                 child: const Icon(Icons.add),
               ),
@@ -166,10 +194,7 @@ class HistoryPage extends StatelessWidget {
       children: [
         for (var request in appState.history)
           HistoryTile(
-            date: request.date,
-            restaurant: request.restaurantName,
-            status: request.icon,
-            time: '12:00 PM',
+            request: request,
           ),
       ],
     );
@@ -190,10 +215,7 @@ class EmployeesPage extends StatelessWidget {
             children: [
               for (var employee in appState.employees)
                 EmployeeTile(
-                  name: employee.name,
-                  email: employee.email,
-                  phone: employee.phone,
-                  status: employee.status,
+                  employee: employee,
                 ),
             ],
           ),
@@ -205,7 +227,11 @@ class EmployeesPage extends StatelessWidget {
               padding: const EdgeInsets.all(20.0),
               child: FloatingActionButton(
                 onPressed: () {
-                  // Handle button tap
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (context) => NewEmployee(appState: appState)),
+                  );
                 },
                 child: const Icon(Icons.add),
               ),
@@ -218,24 +244,27 @@ class EmployeesPage extends StatelessWidget {
 }
 
 class RequestTile extends StatelessWidget {
-  final Icon icon;
-  final String status;
-  final String name;
-  final String category;
+  final Request request;
 
   const RequestTile({
+    //
     super.key,
-    required this.icon,
-    required this.status,
-    required this.name,
-    required this.category,
+    required this.request,
   });
 
   @override
   Widget build(BuildContext context) {
+    // watch the app state
+    var appState = context.watch<OrganizationAppState>();
+
     return InkWell(
       onTap: () {
-        // handle tile tap
+        showModalBottomSheet(
+            context: context,
+            builder: (context) => RequestBottomSheet(
+                  request: request,
+                  appState: appState,
+                ));
       },
       child: Container(
         padding: const EdgeInsets.all(16),
@@ -246,7 +275,8 @@ class RequestTile extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    name,
+                    //
+                    request.restaurantName,
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 18,
@@ -254,7 +284,8 @@ class RequestTile extends StatelessWidget {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    category,
+                    //
+                    request.category,
                     style: const TextStyle(fontSize: 14),
                   ),
                 ],
@@ -263,9 +294,11 @@ class RequestTile extends StatelessWidget {
             Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                icon,
+                //
+                request.icon,
                 const SizedBox(width: 8),
-                Text(status),
+                //
+                Text(request.status),
               ],
             )
           ],
@@ -276,24 +309,22 @@ class RequestTile extends StatelessWidget {
 }
 
 class HistoryTile extends StatelessWidget {
-  final String date;
-  final String restaurant;
-  final Icon status;
-  final String time;
+  final Request request;
 
   const HistoryTile({
     super.key,
-    required this.date,
-    required this.restaurant,
-    required this.status,
-    required this.time,
+    required this.request,
   });
 
   @override
   Widget build(BuildContext context) {
     return InkWell(
       onTap: () {
-        // Handle tile tap
+        showModalBottomSheet(
+            context: context,
+            builder: (context) => HistoryBottomSheet(
+                  request: request,
+                ));
       },
       child: Container(
         padding: const EdgeInsets.all(16),
@@ -304,23 +335,23 @@ class HistoryTile extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    date,
+                    request.date,
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 18,
                     ),
                   ),
                   const SizedBox(height: 8),
-                  Text(restaurant),
+                  Text(request.restaurantName),
                 ],
               ),
             ),
             Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                status,
+                Text(request.status),
                 const SizedBox(width: 8),
-                Text(time),
+                Text(request.time),
               ],
             )
           ],
@@ -331,24 +362,25 @@ class HistoryTile extends StatelessWidget {
 }
 
 class EmployeeTile extends StatelessWidget {
-  final String name;
-  final String email;
-  final String phone;
-  final String status;
+  final Employee employee;
 
   const EmployeeTile({
     super.key,
-    required this.name,
-    required this.email,
-    required this.phone,
-    required this.status,
+    required this.employee,
   });
 
   @override
   Widget build(BuildContext context) {
+    var appState = context.watch<OrganizationAppState>();
+
     return InkWell(
       onTap: () {
-        // Handle tile tap
+        showModalBottomSheet(
+            context: context,
+            builder: (context) => EmployeeBottomSheet(
+                  employee: employee,
+                  appState: appState,
+                ));
       },
       child: Container(
         padding: const EdgeInsets.all(16),
@@ -359,7 +391,7 @@ class EmployeeTile extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    name,
+                    employee.name,
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 18,
@@ -371,9 +403,216 @@ class EmployeeTile extends StatelessWidget {
             Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Text(status),
+                Text(employee.status),
               ],
             )
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class RequestBottomSheet extends StatelessWidget {
+  final Request request;
+  final OrganizationAppState appState;
+
+  const RequestBottomSheet({
+    super.key,
+    required this.request,
+    required this.appState,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    // watch the app state
+    // var appState = context.watch<OrganizationAppState>();
+
+    return SizedBox(
+      height: 200,
+      child: Padding(
+        padding: const EdgeInsets.all(10.0),
+        child: Column(
+          children: [
+            const SizedBox(height: 16),
+            Row(children: [
+              Expanded(
+                child: Text(
+                  request.restaurantName,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                  ),
+                ),
+              ),
+              request.icon,
+            ]),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    request.category,
+                    style: const TextStyle(fontSize: 14),
+                  ),
+                ),
+                Text(
+                  request.status,
+                  textAlign: TextAlign.right,
+                  style: const TextStyle(fontSize: 14),
+                ),
+              ],
+            ),
+            // button
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                ElevatedButton(
+                  onPressed: () {
+                    // cancel request
+                    appState.cancelRequest(request);
+                    Navigator.pop(context);
+                  },
+                  child: const Text('Cancel'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class HistoryBottomSheet extends StatelessWidget {
+  final Request request;
+
+  const HistoryBottomSheet({
+    super.key,
+    required this.request,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    // watch the app state
+
+    return SizedBox(
+      height: 200,
+      child: Padding(
+        padding: const EdgeInsets.all(10.0),
+        child: Column(
+          children: [
+            const SizedBox(height: 16),
+            Row(children: [
+              Expanded(
+                child: Text(
+                  request.restaurantName,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                  ),
+                ),
+              ),
+              Text(
+                request.time,
+                textAlign: TextAlign.right,
+                style: const TextStyle(fontSize: 14),
+              ),
+            ]),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    request.category,
+                    style: const TextStyle(fontSize: 14),
+                  ),
+                ),
+                Text(
+                  request.status,
+                  textAlign: TextAlign.right,
+                  style: const TextStyle(fontSize: 14),
+                ),
+              ],
+            ),
+            // button
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class EmployeeBottomSheet extends StatelessWidget {
+  final Employee employee;
+  final OrganizationAppState appState;
+
+  const EmployeeBottomSheet({
+    super.key,
+    required this.employee,
+    required this.appState,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    // watch the app state
+
+    return SizedBox(
+      height: 200,
+      child: Padding(
+        padding: const EdgeInsets.all(10.0),
+        child: Column(
+          children: [
+            const SizedBox(height: 16),
+            Row(children: [
+              Expanded(
+                child: Text(
+                  employee.name,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                  ),
+                ),
+              ),
+              Text(
+                employee.status,
+                textAlign: TextAlign.right,
+                style: const TextStyle(fontSize: 14),
+              ),
+            ]),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    employee.email,
+                    style: const TextStyle(fontSize: 14),
+                  ),
+                ),
+                Text(
+                  employee.phone,
+                  textAlign: TextAlign.right,
+                  style: const TextStyle(fontSize: 14),
+                ),
+              ],
+            ),
+            // button
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                ElevatedButton(
+                  onPressed: () {
+                    // fire employee
+                    appState.fireEmployee(employee);
+                    Navigator.pop(context);
+                  },
+                  child: const Text('Fire'),
+                ),
+              ],
+            ),
           ],
         ),
       ),
@@ -385,8 +624,9 @@ class Request {
   final String date;
   final String restaurantName;
   final String category;
-  final String status;
+  String status;
   final Icon icon;
+  final String time;
 
   Request({
     required this.date,
@@ -394,6 +634,7 @@ class Request {
     required this.category,
     required this.status,
     required this.icon,
+    required this.time,
   });
 }
 
@@ -409,4 +650,131 @@ class Employee {
     required this.phone,
     required this.status,
   });
+}
+
+// Create new request
+class NewRequest extends StatefulWidget {
+  final OrganizationAppState appState;
+  const NewRequest({super.key, required this.appState});
+
+  @override
+  State<NewRequest> createState() => _NewRequestState();
+}
+
+class _NewRequestState extends State<NewRequest> {
+  // Create text fied controllers
+  TextEditingController restaurantNameController = TextEditingController();
+
+  TextEditingController categoryController = TextEditingController();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('New Request'),
+      ),
+      body: Center(
+        child: Column(
+          // Create a form
+          children: <Widget>[
+            TextField(
+              controller: restaurantNameController,
+              decoration: const InputDecoration(
+                border: OutlineInputBorder(),
+                labelText: 'Restaurant Name',
+              ),
+            ),
+            TextField(
+              controller: categoryController,
+              decoration: const InputDecoration(
+                border: OutlineInputBorder(),
+                labelText: 'Category',
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                // Add request
+                widget.appState.addRequest(Request(
+                    date: '12/12/2021',
+                    restaurantName: restaurantNameController.text,
+                    category: categoryController.text,
+                    status: 'Open',
+                    icon: const Icon(Icons.star),
+                    time: '12:00 PM'));
+                Navigator.pop(context);
+              },
+              child: const Text('Submit'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// Add new employee
+class NewEmployee extends StatefulWidget {
+  final OrganizationAppState appState;
+  const NewEmployee({super.key, required this.appState});
+
+  @override
+  State<NewEmployee> createState() => _NewEmployeeState();
+}
+
+class _NewEmployeeState extends State<NewEmployee> {
+  // Create text fied controllers
+  TextEditingController nameController = TextEditingController();
+
+  TextEditingController emailController = TextEditingController();
+
+  TextEditingController phoneController = TextEditingController();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('New Employee'),
+      ),
+      body: Center(
+        child: Column(
+          // Create a form
+          children: <Widget>[
+            TextField(
+              controller: nameController,
+              decoration: const InputDecoration(
+                border: OutlineInputBorder(),
+                labelText: 'Name',
+              ),
+            ),
+            TextField(
+              controller: emailController,
+              decoration: const InputDecoration(
+                border: OutlineInputBorder(),
+                labelText: 'Email',
+              ),
+            ),
+            TextField(
+              controller: phoneController,
+              decoration: const InputDecoration(
+                border: OutlineInputBorder(),
+                labelText: 'Phone',
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                // Add employee
+                widget.appState.addEmployee(Employee(
+                    name: nameController.text,
+                    email: emailController.text,
+                    phone: phoneController.text,
+                    status: 'Active'));
+                Navigator.pop(context);
+              },
+              child: const Text('Submit'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
