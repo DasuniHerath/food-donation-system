@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
-import 'organization.dart';
+import 'package:food_donation_app/donor/donor.dart';
+import 'package:food_donation_app/organization/organization.dart';
+import 'member/member.dart';
 
 void main() => runApp(const MyApp());
 
@@ -16,7 +18,7 @@ class MyApp extends StatelessWidget {
           useMaterial3: true,
           colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepOrange)),
       home: const Scaffold(
-        body: OrganizationApp(),
+        body: MemberApp(),
       ),
     );
   }
