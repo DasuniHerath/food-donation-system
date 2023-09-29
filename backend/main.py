@@ -1,32 +1,25 @@
 from fastapi import FastAPI, Query, WebSocket
 from datetime import datetime
-from pydantic import BaseModel
+from models import request_body, conversions
+import asyncio
 
 # Category limit
 CATEGORY_LIMIT = 5 
 
 app = FastAPI()
 
-# Request should have a body with the following fields
-        # A unique id for each request
-        # A string to indicate the name of donor (by default it is anonymous)
-        # An integer to indicate a category
-        # An integer to indicate amount
-        # Time and date of request
-        # An integer to indicate the status of request (by default it is 0)
-class request_body(BaseModel):
-    id: int
-    name: str = "anonymous"
-    category: int
-    amount: int
-    time: datetime = datetime.now()
-    status: int = 0
-    member: int = 0
+
 
 # A data request to store the request_body
 requests = []
-history = []
+history = [
+    request_body(id=1, name="Pizza Hut", category=1, amount=100, time=datetime.now(), status=1, member=1),
+    request_body(id=2, name="Shabab", category=2, amount=200, time=datetime.now(), status=2, member=2),
+]
 members = []
+
+# A flag to indicate that history list has changed 
+history_update = asyncio.Event()
 
 
 @app.get("/")
@@ -53,8 +46,12 @@ async def get_requests():
     # Check if there is no requests
     if len(requests) == 0:
         return {"message": "No requests"}
+    # Go through each request and convert it to json
+    requests_json = []
+    for request in requests:
+        requests_json.append(request.dict())
     # Return the all requests
-    return {"message": "Requests", "requests": requests}
+    return {"message": "Requests", "requests": requests_json}
 
 # Delete request to delete a request using id
 @app.delete("/delete_request/")
@@ -62,25 +59,25 @@ async def delete_request(id: int):
     # Check if the id is valid
     if id < 1 or id > len(requests):
         return {"message": "Invalid id"}
-    # Delete the request
+    # Delete and add the request to history but with status 3
+    history.append(requests[id-1])
+    history_update.set()
     requests.pop(id-1)
-    # Return the all requests
+    # Return the all history    
     return {"message": "Request deleted successfully"}
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
+    history_update.set()
     while True:
-        data = await get_updated_data()  # function to get updated data
-        await websocket.send_json(data)
+        await history_update.wait()
+        # Send history as a bytes stream
+        await websocket.send_json(conversions().request_to_json(history))
+        history_update.clear()
+    await websocket.close()
 
-def get_updated_data():
-    # Check if there is no requests
-    if len(requests) == 0:
-        return {"message": "No requests"}
-    # Return the all requests
-    return {"message": "Requests", "requests": requests}
-
+ 
 # Send client history
 @app.get("/get_history/")
 async def get_history():

@@ -146,7 +146,7 @@ class DonorTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // watch the app state
-    var appState = context.watch<MemberAppState>();
+    // var appState = context.watch<MemberAppState>();
 
     return InkWell(
       onTap: () {

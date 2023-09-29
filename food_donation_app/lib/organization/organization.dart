@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:web_socket_channel/io.dart';
+import 'dart:convert';
 
 class OrganizationApp extends StatelessWidget {
   const OrganizationApp({super.key});
@@ -14,6 +16,11 @@ class OrganizationApp extends StatelessWidget {
 }
 
 class OrganizationAppState extends ChangeNotifier {
+  final wsUrl = Uri.parse('ws://localhost:8000/ws');
+  bool isConnected = false;
+
+  late IOWebSocketChannel channel;
+
   var history = <Request>[
     Request(
         date: '12/12/2021',
@@ -66,6 +73,28 @@ class OrganizationAppState extends ChangeNotifier {
         phone: '0987654321',
         status: 'Inactive'),
   ];
+
+  void connect() {
+    // connect to websocket only if aleady not connected
+    if (isConnected) {
+      return;
+    }
+    channel = IOWebSocketChannel.connect(wsUrl);
+    isConnected = true;
+    channel.stream.listen((message) {
+      updateHistory(message);
+    });
+  }
+
+  void updateHistory(String message) {
+    List<dynamic> jsonData = jsonDecode(message);
+    history = jsonData.map((data) => Request.fromJson(data)).toList();
+    notifyListeners();
+    // print history
+    for (var request in history) {
+      print(request.restaurantName);
+    }
+  }
 
   void addRequest(Request request) {
     requests.add(request);
@@ -193,6 +222,7 @@ class HistoryPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     var appState = context.watch<OrganizationAppState>();
+    appState.connect();
 
     return ListView(
       children: [
@@ -701,6 +731,18 @@ class Request {
     required this.time,
     required this.icon,
   });
+
+  // Function to convert JSON data to Request object
+  factory Request.fromJson(Map<String, dynamic> json) {
+    return Request(
+      restaurantName: json['name'],
+      date: json['time'],
+      category: json['category'].toString(),
+      status: json['status'].toString(),
+      time: json['time'],
+      icon: const Icon(Icons.fastfood), // replace with your icon
+    );
+  }
 }
 
 class Employee {
