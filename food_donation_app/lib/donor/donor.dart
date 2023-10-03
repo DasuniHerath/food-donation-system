@@ -14,24 +14,7 @@ class DonorApp extends StatelessWidget {
 }
 
 class DonorAppState extends ChangeNotifier {
-  var history = <Request>[
-    Request(
-        date: '12/12/2021',
-        charityName: 'Hope Horizon',
-        category: 'Rice',
-        amount: 2,
-        status: 'Success',
-        icon: const Icon(Icons.rice_bowl),
-        time: '12:00 PM'),
-    Request(
-        date: '12/12/2021',
-        charityName: 'Unity Umbrella',
-        category: 'Bread',
-        amount: 1,
-        status: 'Cancelled',
-        icon: const Icon(Icons.breakfast_dining),
-        time: '12:00 PM')
-  ];
+  var history = <Request>[];
   var requests = <Request>[
     Request(
         date: '12/12/2021',

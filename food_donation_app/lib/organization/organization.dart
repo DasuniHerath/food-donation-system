@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:web_socket_channel/io.dart';
+import 'package:http/http.dart' as http;
 import 'dart:convert';
 
 class OrganizationApp extends StatelessWidget {
@@ -16,72 +17,29 @@ class OrganizationApp extends StatelessWidget {
 }
 
 class OrganizationAppState extends ChangeNotifier {
-  final wsUrl = Uri.parse('ws://localhost:8000/ws');
-  bool isConnected = false;
+  final wsUrlOrgHistory = Uri.parse('ws://localhost:8000/orghistory');
+  final wsUrlOrgRequests = Uri.parse('ws://localhost:8000/orgrequests');
+  final wsUrlOrgMembers = Uri.parse('ws://localhost:8000/orgMembers');
+  bool isOrgHistoryConnected = false;
+  bool isOrgRequestsConnected = false;
+  bool isOrgMembersConnected = false;
 
-  late IOWebSocketChannel channel;
+  late IOWebSocketChannel orgHistoryChannel;
+  late IOWebSocketChannel orgRequestsChannel;
+  late IOWebSocketChannel orgMembersChannel;
 
-  var history = <Request>[
-    Request(
-        date: '12/12/2021',
-        restaurantName: 'Tropical Taste',
-        category: 'Rice',
-        status: 'Success',
-        icon: const Icon(Icons.rice_bowl),
-        time: '12:00 PM'),
-    Request(
-        date: '12/12/2021',
-        restaurantName: 'Tasty Bites',
-        category: 'Bread',
-        status: 'Cancelled',
-        icon: const Icon(Icons.breakfast_dining),
-        time: '12:00 PM')
-  ];
-  var requests = <Request>[
-    Request(
-        date: '12/12/2021',
-        restaurantName: 'Kitchen King',
-        category: 'Rice',
-        status: 'Delivering',
-        icon: const Icon(Icons.rice_bowl),
-        time: '12:00 PM'),
-    Request(
-        date: '12/12/2021',
-        restaurantName: '........',
-        category: 'Bread',
-        status: 'Waiting',
-        icon: const Icon(Icons.breakfast_dining),
-        time: '12:00 PM'),
-    Request(
-        date: '11/04/2021',
-        restaurantName: 'Pastaria',
-        category: 'Fast Food',
-        status: 'Found',
-        icon: const Icon(Icons.fastfood),
-        time: '12:00 PM'),
-  ];
+  var history = <Request>[];
+  var requests = <Request>[];
+  var employees = <Employee>[];
 
-  var employees = <Employee>[
-    Employee(
-        name: 'John Doe',
-        email: 'example@gmail.com',
-        phone: '1234567890',
-        status: 'Active'),
-    Employee(
-        name: 'James Webb',
-        email: 'james@outlook.com',
-        phone: '0987654321',
-        status: 'Inactive'),
-  ];
-
-  void connect() {
+  void connectOrgHistory() {
     // connect to websocket only if aleady not connected
-    if (isConnected) {
+    if (isOrgHistoryConnected) {
       return;
     }
-    channel = IOWebSocketChannel.connect(wsUrl);
-    isConnected = true;
-    channel.stream.listen((message) {
+    orgHistoryChannel = IOWebSocketChannel.connect(wsUrlOrgHistory);
+    isOrgHistoryConnected = true;
+    orgHistoryChannel.stream.listen((message) {
       updateHistory(message);
     });
   }
@@ -90,32 +48,94 @@ class OrganizationAppState extends ChangeNotifier {
     List<dynamic> jsonData = jsonDecode(message);
     history = jsonData.map((data) => Request.fromJson(data)).toList();
     notifyListeners();
-    // print history
-    for (var request in history) {
-      print(request.restaurantName);
+  }
+
+  void connectOrgRequests() {
+    // connect to websocket only if aleady not connected
+    if (isOrgRequestsConnected) {
+      return;
     }
+    orgRequestsChannel = IOWebSocketChannel.connect(wsUrlOrgRequests);
+    isOrgRequestsConnected = true;
+    orgRequestsChannel.stream.listen((message) {
+      updateRequests(message);
+    });
   }
 
-  void addRequest(Request request) {
-    requests.add(request);
+  void updateRequests(String message) {
+    List<dynamic> jsonData = jsonDecode(message);
+    requests = jsonData.map((data) => Request.fromJson(data)).toList();
     notifyListeners();
   }
 
-  void cancelRequest(Request request) {
-    requests.remove(request);
-    request.status = 'Cancelled';
-    history.add(request);
+  void connectOrgMembers() {
+    if (isOrgMembersConnected) {
+      return;
+    }
+    orgMembersChannel = IOWebSocketChannel.connect(wsUrlOrgMembers);
+    isOrgMembersConnected = true;
+    orgMembersChannel.stream.listen((message) {
+      updateMembers(message);
+    });
+  }
+
+  void updateMembers(String message) {
+    List<dynamic> jsonData = jsonDecode(message);
+    employees = jsonData.map((data) => Employee.fromJson(data)).toList();
     notifyListeners();
   }
 
-  void fireEmployee(Employee employee) {
-    employees.remove(employee);
+  void addRequest(String category, int amount) {
+    // Dictionary to convert category name to category id
+    var categoryDict = {
+      'Rice': 1,
+      'Bread': 2,
+      'Fast Food': 3,
+    };
+    addRequestToServer(categoryDict[category]!, amount);
     notifyListeners();
   }
 
-  void addEmployee(Employee employee) {
-    employees.add(employee);
-    notifyListeners();
+  Future<http.Response> addRequestToServer(int category, int amount) {
+    return http.post(Uri.parse('http://localhost:8000/add_request/'),
+        headers: <String, String>{
+          'Content-Type': 'application/json; charset=UTF-8',
+        },
+
+        // Convert data to JSON format
+        body: jsonEncode(<String, dynamic>{
+          'category': category,
+          'amount': amount,
+        }));
+  }
+
+  Future<http.Response> cancelRequest(int id) async {
+    final http.Response response = await http.delete(
+      Uri.parse('http://127.0.0.1:8000/delete_request/?id=$id'),
+      headers: <String, String>{
+        'Content-Type': 'application/json; charset=UTF-8',
+      },
+    );
+    return response;
+  }
+
+  Future<http.Response> addMember(int id) {
+    return http.post(
+      Uri.parse('http://127.0.0.1:8000/add_member/?memberid=$id'),
+      headers: <String, String>{
+        'Content-Type': 'application/json; charset=UTF-8',
+      },
+    );
+  }
+
+  Future<http.Response> fireMember(int id) async {
+    final http.Response response = await http.delete(
+      Uri.parse('http://127.0.0.1:8000/remove_member/?memberid=$id'),
+      headers: <String, String>{
+        'Content-Type': 'application/json; charset=UTF-8',
+      },
+    );
+    return response;
   }
 }
 
@@ -176,6 +196,7 @@ class RequestPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     var appState = context.watch<OrganizationAppState>();
+    appState.connectOrgRequests();
 
     return Column(
       children: [
@@ -222,7 +243,7 @@ class HistoryPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     var appState = context.watch<OrganizationAppState>();
-    appState.connect();
+    appState.connectOrgHistory();
 
     return ListView(
       children: [
@@ -244,6 +265,7 @@ class EmployeesPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     var appState = context.watch<OrganizationAppState>();
+    appState.connectOrgMembers();
 
     return Column(
       children: [
@@ -566,7 +588,7 @@ class RequestBottomSheet extends StatelessWidget {
                 ElevatedButton(
                   onPressed: () {
                     // cancel request
-                    appState.cancelRequest(request);
+                    appState.cancelRequest(request.id);
                     Navigator.pop(context);
                   },
                   child: const Text('Cancel'),
@@ -701,7 +723,7 @@ class EmployeeBottomSheet extends StatelessWidget {
                 ElevatedButton(
                   onPressed: () {
                     // fire employee
-                    appState.fireEmployee(employee);
+                    appState.fireMember(employee.id);
                     Navigator.pop(context);
                   },
                   child: const Text('Fire'),
@@ -716,6 +738,7 @@ class EmployeeBottomSheet extends StatelessWidget {
 }
 
 class Request {
+  final int id;
   final String date;
   final String restaurantName;
   final String category;
@@ -724,6 +747,7 @@ class Request {
   final Icon icon;
 
   Request({
+    required this.id,
     required this.date,
     required this.restaurantName,
     required this.category,
@@ -732,31 +756,72 @@ class Request {
     required this.icon,
   });
 
+  // A dictionary to get category name and icon from category id
+  static const categoryDict = {
+    '1': {
+      'name': 'Rice',
+      'icon': Icon(Icons.rice_bowl),
+    },
+    '2': {'name': 'Bread', 'icon': Icon(Icons.breakfast_dining)},
+    '3': {'name': 'Fast Food', 'icon': Icon(Icons.fastfood)},
+  };
+
+  // A dictionary to get status name from status id
+  static const statusDict = {
+    '0': 'Waiting',
+    '1': 'Delivering',
+    '2': 'Found',
+    '3': 'Cancelled',
+  };
+
   // Function to convert JSON data to Request object
   factory Request.fromJson(Map<String, dynamic> json) {
+    // Convert ISO 8601 format datetime into date and time
+    var date = DateTime.parse(json['time']);
+    var formattedDate = '${date.day}/${date.month}/${date.year}';
+    var formattedTime = '${date.hour}:${date.minute}';
+
     return Request(
+      id: json['id'],
       restaurantName: json['name'],
-      date: json['time'],
-      category: json['category'].toString(),
-      status: json['status'].toString(),
-      time: json['time'],
-      icon: const Icon(Icons.fastfood), // replace with your icon
+      date: formattedDate,
+      category: categoryDict[json['category'].toString()]!['name']! as String,
+      status: statusDict[json['status'].toString()]!,
+      time: formattedTime,
+      icon: (categoryDict[json['category'].toString()]!['icon']! as Icon),
     );
   }
 }
 
 class Employee {
+  final int id;
   final String name;
   final String email;
   final String phone;
   final String status;
 
   Employee({
+    required this.id,
     required this.name,
     required this.email,
     required this.phone,
     required this.status,
   });
+
+  // A dictionary to convert status
+  static const statusDict = {
+    '0': 'Inactive',
+    '1': 'Active',
+  };
+
+  factory Employee.fromJson(Map<String, dynamic> json) {
+    return Employee(
+        id: json['id'],
+        name: json['name'],
+        email: json['email'],
+        phone: json['phone'],
+        status: statusDict[json['status'].toString()]!);
+  }
 }
 
 // Create new request
@@ -773,7 +838,7 @@ class _NewRequestState extends State<NewRequest> {
   TextEditingController restaurantNameController = TextEditingController();
   TextEditingController amountController = TextEditingController();
 
-  String dropdownValue = 'One';
+  String dropdownValue = 'Rice';
 
   @override
   Widget build(BuildContext context) {
@@ -801,7 +866,7 @@ class _NewRequestState extends State<NewRequest> {
                       dropdownValue = newValue!;
                     });
                   },
-                  items: <String>['One', 'Two', 'Three', 'Four']
+                  items: <String>['Rice', 'Bread', 'Fast Food']
                       .map<DropdownMenuItem<String>>((String value) {
                     return DropdownMenuItem<String>(
                       value: value,
@@ -826,13 +891,8 @@ class _NewRequestState extends State<NewRequest> {
             ElevatedButton(
               onPressed: () {
                 // Add request
-                widget.appState.addRequest(Request(
-                    date: '12/12/2021',
-                    restaurantName: restaurantNameController.text,
-                    category: dropdownValue,
-                    status: 'Open',
-                    icon: const Icon(Icons.star),
-                    time: '12:00 PM'));
+                widget.appState.addRequest(
+                    dropdownValue, int.parse(amountController.text));
                 Navigator.pop(context);
               },
               child: const Text('Submit'),
@@ -855,11 +915,8 @@ class NewEmployee extends StatefulWidget {
 
 class _NewEmployeeState extends State<NewEmployee> {
   // Create text fied controllers
-  TextEditingController nameController = TextEditingController();
 
-  TextEditingController emailController = TextEditingController();
-
-  TextEditingController phoneController = TextEditingController();
+  TextEditingController idController = TextEditingController();
 
   @override
   Widget build(BuildContext context) {
@@ -872,21 +929,7 @@ class _NewEmployeeState extends State<NewEmployee> {
           // Create a form
           children: <Widget>[
             TextField(
-              controller: nameController,
-              decoration: const InputDecoration(
-                border: OutlineInputBorder(),
-                labelText: 'Name',
-              ),
-            ),
-            TextField(
-              controller: emailController,
-              decoration: const InputDecoration(
-                border: OutlineInputBorder(),
-                labelText: 'Email',
-              ),
-            ),
-            TextField(
-              controller: phoneController,
+              controller: idController,
               decoration: const InputDecoration(
                 border: OutlineInputBorder(),
                 labelText: 'Phone',
@@ -895,11 +938,7 @@ class _NewEmployeeState extends State<NewEmployee> {
             ElevatedButton(
               onPressed: () {
                 // Add employee
-                widget.appState.addEmployee(Employee(
-                    name: nameController.text,
-                    email: emailController.text,
-                    phone: phoneController.text,
-                    status: 'Active'));
+                widget.appState.addMember(int.parse(idController.text));
                 Navigator.pop(context);
               },
               child: const Text('Submit'),

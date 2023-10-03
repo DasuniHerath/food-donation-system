@@ -22,8 +22,19 @@ class request_body(BaseModel):
     def dict(self):
         return {
             **super().model_dump(),
-            "time": self.time.isoformat()
+            "time": self.time.isoformat() # Convert datetime to string in ISO 8601 format
         }
+
+class member_body(BaseModel):
+    id: int
+    name: str
+    email: str
+    phone: str
+    status: int = 0
+
+class request_item(BaseModel):
+    category: int
+    amount: int
 
 # Convert a request_body to json
 class conversions:
