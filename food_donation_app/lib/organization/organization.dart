@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:web_socket_channel/io.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'dart:io';
 
 class OrganizationApp extends StatelessWidget {
   const OrganizationApp({super.key});
@@ -17,9 +18,15 @@ class OrganizationApp extends StatelessWidget {
 }
 
 class OrganizationAppState extends ChangeNotifier {
-  final wsUrlOrgHistory = Uri.parse('ws://localhost:8000/orghistory');
-  final wsUrlOrgRequests = Uri.parse('ws://localhost:8000/orgrequests');
-  final wsUrlOrgMembers = Uri.parse('ws://localhost:8000/orgMembers');
+  final wsUrlOrgHistory = Uri.parse(Platform.isAndroid
+      ? 'ws://10.0.2.2:8000/orghistory'
+      : 'ws://localhost:8000/orghistory');
+  final wsUrlOrgRequests = Uri.parse(Platform.isAndroid
+      ? 'ws://10.0.2.2:8000/orgrequests'
+      : 'ws://localhost:8000/orgrequests');
+  final wsUrlOrgMembers = Uri.parse(Platform.isAndroid
+      ? 'ws://10.0.2.2:8000/orgMembers'
+      : 'ws://localhost:8000/orgMembers');
   bool isOrgHistoryConnected = false;
   bool isOrgRequestsConnected = false;
   bool isOrgMembersConnected = false;
@@ -97,7 +104,10 @@ class OrganizationAppState extends ChangeNotifier {
   }
 
   Future<http.Response> addRequestToServer(int category, int amount) {
-    return http.post(Uri.parse('http://localhost:8000/add_request/'),
+    return http.post(
+        Uri.parse(Platform.isAndroid
+            ? 'http://10.0.2.2:8000/add_request/'
+            : 'http://localhost:8000/add_request/'),
         headers: <String, String>{
           'Content-Type': 'application/json; charset=UTF-8',
         },
@@ -111,7 +121,9 @@ class OrganizationAppState extends ChangeNotifier {
 
   Future<http.Response> cancelRequest(int id) async {
     final http.Response response = await http.delete(
-      Uri.parse('http://127.0.0.1:8000/delete_request/?id=$id'),
+      Uri.parse(Platform.isAndroid
+          ? 'http://10.0.2.2:8000/delete_request/?id=$id'
+          : 'http://localhost:8000/delete_request/?id=$id'),
       headers: <String, String>{
         'Content-Type': 'application/json; charset=UTF-8',
       },
@@ -121,7 +133,9 @@ class OrganizationAppState extends ChangeNotifier {
 
   Future<http.Response> addMember(int id) {
     return http.post(
-      Uri.parse('http://127.0.0.1:8000/add_member/?memberid=$id'),
+      Uri.parse(Platform.isAndroid
+          ? 'http://10.0.2.2:8000/add_member/?memberid=$id'
+          : 'http://localhost:8000/add_member/?memberid=$id'),
       headers: <String, String>{
         'Content-Type': 'application/json; charset=UTF-8',
       },
@@ -130,7 +144,9 @@ class OrganizationAppState extends ChangeNotifier {
 
   Future<http.Response> fireMember(int id) async {
     final http.Response response = await http.delete(
-      Uri.parse('http://127.0.0.1:8000/remove_member/?memberid=$id'),
+      Uri.parse(Platform.isAndroid
+          ? 'http://10.0.2.2:8000/remove_member/?memberid=$id'
+          : 'http://localhost:8000/remove_member/?memberid=$id'),
       headers: <String, String>{
         'Content-Type': 'application/json; charset=UTF-8',
       },
@@ -779,7 +795,8 @@ class Request {
     // Convert ISO 8601 format datetime into date and time
     var date = DateTime.parse(json['time']);
     var formattedDate = '${date.day}/${date.month}/${date.year}';
-    var formattedTime = '${date.hour}:${date.minute}';
+    var formattedTime =
+        '${date.hour}:${date.minute.toString().padLeft(2, '0')}';
 
     return Request(
       id: json['id'],
@@ -835,7 +852,6 @@ class NewRequest extends StatefulWidget {
 
 class _NewRequestState extends State<NewRequest> {
   // Create text field controllers
-  TextEditingController restaurantNameController = TextEditingController();
   TextEditingController amountController = TextEditingController();
 
   String dropdownValue = 'Rice';
@@ -850,13 +866,6 @@ class _NewRequestState extends State<NewRequest> {
         child: Column(
           // Create a form
           children: <Widget>[
-            TextField(
-              controller: restaurantNameController,
-              decoration: const InputDecoration(
-                border: OutlineInputBorder(),
-                labelText: 'Restaurant Name',
-              ),
-            ),
             SizedBox(
                 width: 500,
                 child: DropdownButton<String>(
@@ -932,7 +941,7 @@ class _NewEmployeeState extends State<NewEmployee> {
               controller: idController,
               decoration: const InputDecoration(
                 border: OutlineInputBorder(),
-                labelText: 'Phone',
+                labelText: 'Member ID',
               ),
             ),
             ElevatedButton(

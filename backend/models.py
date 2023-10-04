@@ -11,7 +11,7 @@ import json
         # An integer to indicate the status of request (by default it is 0)
 class request_body(BaseModel):
     id: int
-    name: str = "anonymous"
+    name: str = "Searching for donor"
     category: int
     amount: int
     time: datetime = datetime.now()
