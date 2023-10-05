@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'dart:io';
+import 'package:intl/intl.dart';
+import 'package:image_picker/image_picker.dart';
 
 class DonorApp extends StatelessWidget {
   const DonorApp({super.key});
@@ -69,6 +72,10 @@ class _OrgNavigationBarState extends State<OrgNavigationBar> {
             label: 'Request',
           ),
           NavigationDestination(
+            icon: Icon(Icons.favorite_outline_outlined),
+            label: 'Donate',
+          ),
+          NavigationDestination(
             icon: Icon(Icons.history),
             label: 'History',
           ),
@@ -78,6 +85,10 @@ class _OrgNavigationBarState extends State<OrgNavigationBar> {
         Container(
           alignment: Alignment.center,
           child: const RequestPage(),
+        ),
+        Container(
+          alignment: Alignment.center,
+          child: const DonationScreen(),
         ),
         Container(alignment: Alignment.center, child: const HistoryPage()),
       ][currentPageIndex],
@@ -446,4 +457,200 @@ class Request {
     required this.time,
     required this.icon,
   });
+}
+
+class DonationScreen extends StatelessWidget {
+  const DonationScreen({super.key});
+
+  //final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+  // final _formKey = GlobalKey<FormState>();
+  // String? _foodType;
+//  String? _address;
+//  double? _amount;
+//  double? _weight;
+//  DateTime? _expiryDate;
+// File? _foodImage;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Donation'),
+      ),
+      body: const DonationForm(),
+    );
+  }
+}
+
+class DonationForm extends StatefulWidget {
+  const DonationForm({super.key});
+  @override
+  // ignore: library_private_types_in_public_api
+  _DonationFormState createState() => _DonationFormState();
+}
+
+class _DonationFormState extends State<DonationForm> {
+  final _formKey = GlobalKey<FormState>();
+  String? foodType;
+  String? address;
+  double? amount;
+  double? weight;
+  DateTime? _expiryDate;
+  File? _foodImage;
+
+  get validator => null;
+
+  get onSaved => null;
+
+  Future<void> _pickImage() async {
+    final imagePicker = ImagePicker();
+    final pickedImage = await imagePicker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 80,
+      maxWidth: 800,
+    );
+
+    if (pickedImage != null) {
+      // Check the file extension to ensure it's a .jpg image
+      if (pickedImage.path.endsWith('.jpg')) {
+        setState(() {
+          _foodImage = File(pickedImage.path);
+          debugPrint('Image Path: ${_foodImage?.path}');
+        });
+      } else {
+        // Display an error message or handle non-.jpg images as needed
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Form(
+      key: _formKey,
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Type of Food:'),
+            TextFormField(
+              validator: (value) {
+                if (value?.isEmpty ?? true) {
+                  return 'Please enter the type of food';
+                }
+                return null;
+              },
+              onSaved: (value) {
+                foodType = value;
+              },
+            ),
+            const SizedBox(height: 20),
+            const Text('Location :'),
+            TextFormField(
+              validator: (value) {
+                if (value?.isEmpty ?? true) {
+                  return 'Please enter the location';
+                }
+                return null;
+              },
+              onSaved: (value) {
+                address = value;
+              },
+            ),
+            const SizedBox(height: 20),
+            const Text('Amount of Food:'),
+            TextFormField(
+              keyboardType: TextInputType.number,
+              validator: (value) {
+                if (value?.isEmpty ?? true) {
+                  return 'Please enter the amount of food';
+                }
+                return null;
+              },
+              onSaved: (value) {
+                amount = double.tryParse(value!);
+              },
+            ),
+            const SizedBox(height: 20),
+            const Text('Weight of Food (in grams):'),
+            TextFormField(
+              keyboardType: TextInputType.number,
+              validator: (value) {
+                if (value?.isEmpty ?? true) {
+                  return 'Please enter the weight of food';
+                }
+                return null;
+              },
+              onSaved: (value) {
+                weight = double.tryParse(value!);
+              },
+            ),
+            const SizedBox(height: 20),
+            const Text('Expiry Date:'),
+            InkWell(
+              onTap: () async {
+                final selectedDate = await showDatePicker(
+                  context: context,
+                  initialDate: DateTime.now(),
+                  firstDate: DateTime.now(),
+                  lastDate: DateTime(2101),
+                );
+
+                if (selectedDate != null) {
+                  setState(() {
+                    _expiryDate = selectedDate;
+                  });
+                }
+              },
+              child: Text(
+                _expiryDate != null
+                    ? DateFormat('yyyy-MM-dd')
+                        .format(_expiryDate!) // Correctly format the date
+                    : 'Select Expiry Date',
+                style: const TextStyle(fontSize: 12),
+              ),
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: _pickImage,
+              child: const Text('Pick an Image'),
+            ),
+            // Display the selected image or a placeholder
+            SizedBox(
+              width: 200, // Adjust the width as needed
+              height: 200,
+              child: Padding(
+                padding:
+                    const EdgeInsets.all(8.0), // Adjust the height as needed
+                child: _foodImage != null
+                    ? Image.file(
+                        _foodImage!,
+                        width: 200,
+                        height: 200,
+                        fit: BoxFit.cover,
+                      )
+                    : const Center(
+                        child: Text('No image selected'),
+                      ),
+              ),
+            ),
+            const SizedBox(
+              height: 20,
+            ),
+            ElevatedButton(
+              onPressed: () {
+                if (_formKey.currentState!.validate()) {
+                  _formKey.currentState!.save();
+                  // Process the form data (e.g., submit to a server)
+                  // You can access _foodType, _amount, and _weight here
+                  // Add your logic to handle the donation
+                }
+              },
+              child: const Text('Donate'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
