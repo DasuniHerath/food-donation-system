@@ -6,18 +6,28 @@ import 'dart:convert';
 import 'dart:io';
 
 class OrganizationApp extends StatelessWidget {
-  const OrganizationApp({super.key});
+  const OrganizationApp({
+    super.key,
+    required this.token,
+  });
+  final String token;
 
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
-      create: (context) => OrganizationAppState(),
+      create: (context) => OrganizationAppState(token: token),
       child: const OrgNavigationBar(),
     );
   }
 }
 
 class OrganizationAppState extends ChangeNotifier {
+  OrganizationAppState({
+    required this.token,
+  });
+
+  final String token;
+
   final wsUrlOrgHistory = Uri.parse(Platform.isAndroid
       ? 'ws://10.0.2.2:8000/orghistory'
       : 'ws://localhost:8000/orghistory');
@@ -39,12 +49,17 @@ class OrganizationAppState extends ChangeNotifier {
   var requests = <Request>[];
   var employees = <Employee>[];
 
-  void connectOrgHistory() {
+  void connectOrgHistory() async {
     // connect to websocket only if aleady not connected
     if (isOrgHistoryConnected) {
       return;
     }
+
     orgHistoryChannel = IOWebSocketChannel.connect(wsUrlOrgHistory);
+    // wait until orgHistoryChannel connected and write a message to the socket
+    await orgHistoryChannel.ready;
+    // Write a message to the socket
+    orgHistoryChannel.sink.add('token1');
     isOrgHistoryConnected = true;
     orgHistoryChannel.stream.listen((message) {
       updateHistory(message);
@@ -57,12 +72,15 @@ class OrganizationAppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  void connectOrgRequests() {
+  void connectOrgRequests() async {
     // connect to websocket only if aleady not connected
     if (isOrgRequestsConnected) {
       return;
     }
     orgRequestsChannel = IOWebSocketChannel.connect(wsUrlOrgRequests);
+    await orgRequestsChannel.ready;
+    // Write a message to the socket
+    orgRequestsChannel.sink.add('token1');
     isOrgRequestsConnected = true;
     orgRequestsChannel.stream.listen((message) {
       updateRequests(message);
@@ -75,11 +93,14 @@ class OrganizationAppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  void connectOrgMembers() {
+  void connectOrgMembers() async {
     if (isOrgMembersConnected) {
       return;
     }
     orgMembersChannel = IOWebSocketChannel.connect(wsUrlOrgMembers);
+    await orgMembersChannel.ready;
+    // Write a message to the socket
+    orgMembersChannel.sink.add('token1');
     isOrgMembersConnected = true;
     orgMembersChannel.stream.listen((message) {
       updateMembers(message);
@@ -110,6 +131,7 @@ class OrganizationAppState extends ChangeNotifier {
             : 'http://localhost:8000/add_request/'),
         headers: <String, String>{
           'Content-Type': 'application/json; charset=UTF-8',
+          'Authorization': 'Bearer $token',
         },
 
         // Convert data to JSON format
@@ -126,6 +148,7 @@ class OrganizationAppState extends ChangeNotifier {
           : 'http://localhost:8000/delete_request/?id=$id'),
       headers: <String, String>{
         'Content-Type': 'application/json; charset=UTF-8',
+        'Authorization': 'Bearer $token',
       },
     );
     return response;
@@ -138,6 +161,7 @@ class OrganizationAppState extends ChangeNotifier {
           : 'http://localhost:8000/add_member/?memberid=$id'),
       headers: <String, String>{
         'Content-Type': 'application/json; charset=UTF-8',
+        'Authorization': 'Bearer $token',
       },
     );
   }
@@ -149,6 +173,7 @@ class OrganizationAppState extends ChangeNotifier {
           : 'http://localhost:8000/remove_member/?memberid=$id'),
       headers: <String, String>{
         'Content-Type': 'application/json; charset=UTF-8',
+        'Authorization': 'Bearer $token',
       },
     );
     return response;

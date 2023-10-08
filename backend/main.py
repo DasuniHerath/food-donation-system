@@ -104,6 +104,11 @@ async def delete_request(id: int, user_id: int = Depends(get_current_user)):
     # Check if the id is valid
     if id < 1:
         return {"message": "Invalid id"}
+    
+
+    # TODO: There is a bug here
+
+
     # Delete and add the request to history but with status 3
     get_organization_by_id(user_id).requests[id-1].status = 3
     get_organization_by_id(user_id).history.append(get_organization_by_id(user_id).requests[id-1])
