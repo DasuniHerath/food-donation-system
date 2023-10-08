@@ -1,12 +1,15 @@
-from fastapi import FastAPI, Query, WebSocket
+from fastapi import FastAPI, Query, WebSocket, Depends,  HTTPException
+from fastapi.security import OAuth2PasswordBearer
 from datetime import datetime
-from models import request_body, member_body, request_item, conversions
-import asyncio
+from models import request_body, member_body, request_item, conversions, Flags
+from users import organization
 
 # Category limit
-CATEGORY_LIMIT = 5 
+CATEGORY_LIMIT = 3 
 
 app = FastAPI()
+
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 # A dictionary containing membor_body objects key is memberid
 members_dict = {
@@ -14,38 +17,61 @@ members_dict = {
     2: member_body(id=2, name="Hassan", email="sknv@kfod.com", phone= '03432145')
 }
 
-# A data request to store the request_body
-requests = [
-    
-]
-history = [
-    request_body(id=1, name="Pizza Hut", category=1, amount=100, time=datetime.now(), status=1, member=1),
-    request_body(id=2, name="Shabab", category=2, amount=200, time=datetime.now(), status=2, member=2),
-]
-members = [
-    member_body(id=1, name="Ahmed", email="ahmed@hotmail.com", phone='0123456789'),
-    member_body(id=2, name="Mohamed", email="Mohamed@gamil.com", phone= '03432145')
-]
+# A dictionary containing tokens key is organization id 
+users = {
+    1: "token1",
+    2: "token2",
+    3: "token3"
+}
 
-# A flag to indicate that history list has changed 
-history_update = asyncio.Event()
-# A flag to indicate that requests list has changed
-requests_update = asyncio.Event()
-# A flag to indicate that members list has changed
-members_update = asyncio.Event()
+organizations = []
+
+# A dictionary containing Flags objects key is organization id
+flags = {}
+
+
+def get_current_user(token: str = Depends(oauth2_scheme)):
+    user = None
+    for userId, user_token in users.items():
+        if user_token == token:
+            user = userId
+            break
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid authentication credentials")
+    return user
+
+def get_organization_by_id(org_id: int):
+    for org in organizations:
+        # print(org.id)
+        if org.id == org_id:
+            return org
+    return None
+
+
+
+def get_next_id(user_id):
+
+    if len(get_organization_by_id(user_id).requests) == 0:
+        return 1
+    return get_organization_by_id(user_id).requests[-1].id + 1
+
 
 @app.get("/")
 async def root():
-    return {"message": "I am alive!"}
+    return {"message": "The Help - Food Donation System"}
 
-def get_next_id():
-    if len(requests) == 0:
-        return 1
-    return requests[-1].id + 1
+@app.post("/add_organization/")
+async def add_organization(user_id: int = Depends(get_current_user)):
+    if user_id in [o.id for o in organizations]:
+        return {"message": "Organization already exists"}
+    organizations.append(organization(id=user_id, requests=[], history=[], members=[]))
+    # Creat a Flags object for the new organization and add it to dictionary with its user_id as a key
+    flags[user_id] = Flags()
+    return {"message": "Organization added successfully"}
 
 # Post request to add a new request wich get category and amount as query parameters using request body
 @app.post("/add_request/")
-async def add_request(request_item: request_item):
+async def add_request(request_item: request_item, user_id: int = Depends(get_current_user)):
     # Check if the category is valid
     if request_item.category < 0 or request_item.category > CATEGORY_LIMIT:
         return {"message": "Invalid category"}
@@ -53,37 +79,37 @@ async def add_request(request_item: request_item):
     if request_item.amount < 1:
         return {"message": "Invalid amount"}
     # Add the request to requests list
-    requests.append(request_body(id=get_next_id(), category=request_item.category, amount=request_item.amount, time=datetime.now()))
+    get_organization_by_id(user_id).requests.append(request_body(id=get_next_id(user_id), category=request_item.category, amount=request_item.amount, time=datetime.now()))
     
-    requests_update.set()
+    flags[user_id].requests_update.set()
     # Return the id of the request
-    return {"message": "Request added successfully", "id": len(requests)}
+    return {"message": "Request added successfully", "id": get_organization_by_id(user_id).requests[-1].id}
 
 # Get request to get the status of all requests
 @app.get("/get_requests/")
-async def get_requests():
+async def get_requests(user_id: int = Depends(get_current_user)):
     # Check if there is no requests
-    if len(requests) == 0:
+    if len(get_organization_by_id(user_id).requests) == 0:
         return {"message": "No requests"}
     # Go through each request and convert it to json
     requests_json = []
-    for request in requests:
+    for request in get_organization_by_id(user_id).requests:
         requests_json.append(request.dict())
     # Return the all requests
     return {"message": "Requests", "requests": requests_json}
 
 # Delete request to delete a request using id
 @app.delete("/delete_request/")
-async def delete_request(id: int):
+async def delete_request(id: int, user_id: int = Depends(get_current_user)):
     # Check if the id is valid
     if id < 1:
         return {"message": "Invalid id"}
     # Delete and add the request to history but with status 3
-    requests[id-1].status = 3
-    history.append(requests[id-1])
-    requests_update.set()
-    history_update.set()
-    requests.pop(id-1)
+    get_organization_by_id(user_id).requests[id-1].status = 3
+    get_organization_by_id(user_id).history.append(get_organization_by_id(user_id).requests[id-1])
+    flags[user_id].history_update.set()
+    get_organization_by_id(user_id).requests.pop(id-1)
+    flags[user_id].requests_update.set()
     # Return the all history    
     return {"message": "Request deleted successfully"}
 
@@ -91,108 +117,70 @@ async def delete_request(id: int):
 @app.websocket("/orghistory")
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
-    history_update.set()
+    # await until client send a message
+    token = await websocket.receive_text()
+    user_id = get_current_user(token)
+    flags[user_id].history_update.set()
     while True:
-        await history_update.wait()
+        # set the flag up
+        await flags[user_id].history_update.wait()
         # Send history as a bytes stream
-        await websocket.send_json(conversions().request_to_json(history))
-        history_update.clear()
+        await websocket.send_json(conversions().request_to_json(get_organization_by_id(user_id).history))
+        flags[user_id].history_update.clear()
     await websocket.close()
 
 # Connection to send organization's current requests
 @app.websocket("/orgrequests")
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
-    requests_update.set()
+    token = await websocket.receive_text()
+    user_id = get_current_user(token)
+    flags[user_id].requests_update.set()
     while True:
-        await requests_update.wait()
+        await flags[user_id].requests_update.wait()
         # Send requests as a bytes stream
-        await websocket.send_json(conversions().request_to_json(requests))
-        requests_update.clear()
+        await websocket.send_json(conversions().request_to_json(get_organization_by_id(user_id).requests))
+        flags[user_id].requests_update.clear()
     await websocket.close()
 
 @app.websocket("/orgMembers")
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
-    members_update.set()
+    token = await websocket.receive_text()
+    user_id = get_current_user(token)
+    flags[user_id].members_update.set()
     while True:
-        await members_update.wait()
-        await websocket.send_json(conversions().request_to_json(members))
-        members_update.clear()
+        await flags[user_id].members_update.wait()
+        await websocket.send_json(conversions().request_to_json(get_organization_by_id(user_id).members))
+        flags[user_id].members_update.clear()
     await websocket.close()
 
 # Send client history
 @app.get("/get_history/")
-async def get_history():
+async def get_history(user_id: int = Depends(get_current_user)):
     # Check if there is no history
-    if len(history) == 0:
+    if len(get_organization_by_id(user_id).history) == 0:
         return {"message": "No history"}
     # Return the all history
-    return {"message": "History", "history": history}
+    return {"message": "History", "history": get_organization_by_id(user_id).history}
 
 # Add a new memberid to members list
 @app.post("/add_member/")
-async def add_member(memberid: int):
+async def add_member(memberid: int, user_id: int = Depends(get_current_user)):
     # Check if the memberid is valid
     if memberid < 1:
         return {"message": "Invalid memberid"}
     # Add the memberid to members list
-    members.append(members_dict[memberid])
+    get_organization_by_id(user_id).members.append(members_dict[memberid])
     # Set the flag up
-    members_update.set()
+    flags[user_id].members_update.set()
     # Return the id of the member
     return {"message": "Member added successfully", "id": memberid}
 
-# Send a request from requests to a client
-@app.get("/send_request/")
-async def send_request():
-    # Check if there is no requests
-    if len(requests) == 0:
-        return {"message": "No requests"}
-    # Check if there is no history
-    if len(history) == 0:
-        return {"message": "No history"}
-    # Send the request
-    history.append(requests[0])
-    requests.pop(0)
-    # Return the all history
-    return {"message": "Request sent successfully"}
-
-# Based on the client request, the server change status of the request
-@app.post("/change_status/")
-async def change_status(id: int, status: int):
-    # Check if the id is valid
-    if id < 1 or id > len(requests):
-        return {"message": "Invalid id"}
-    # Check if the status is valid
-    if status < 0 or status > 3:
-        return {"message": "Invalid status"}
-    # Change the status of the request
-    requests[id-1].status = status
-    # Return the all history
-    return {"message": "Status changed successfully"}
-
-# Check if the client is assigned for a request
-@app.post("/is_assigned/")
-async def is_assigned(id: int, memberid: int):
-    # Check if the id is valid
-    if id < 1 or id > len(requests):
-        return {"message": "Invalid id"}
-    # Check if the memberid is valid
-    if memberid < 1:
-        return {"message": "Invalid memberid"}
-    # Check if the memberid is in members list
-    if memberid not in members:
-        return {"message": "Invalid memberid"}
-    # Check if the memberid is assigned for the request
-    if requests[id-1].member != memberid:
-        return {"message": "Not assigned"}
-    # Return the all history
-    return {"message": "Assigned"}
 
 # Remove a member from members list
 @app.delete("/remove_member/")
-async def remove_member(memberid: int):
+async def remove_member(memberid: int, user_id: int = Depends(get_current_user)):
     # Check if the memberid is valid
     if memberid < 1:
         return {"message": "Invalid memberid"}
@@ -200,8 +188,8 @@ async def remove_member(memberid: int):
     if memberid not in members_dict:
         return {"message": "Invalid memberid"}
     # Remove the memberid from members list
-    members.remove(members_dict[memberid])
+    get_organization_by_id(user_id).members.remove(members_dict[memberid])
     # Set the flag up
-    members_update.set()
+    flags[user_id].members_update.set()
     # Return the all history
     return {"message": "Member removed successfully"}

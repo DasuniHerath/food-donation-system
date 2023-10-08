@@ -1,6 +1,6 @@
 from datetime import datetime
 from pydantic import BaseModel
-import json
+import asyncio
 
 # Request should have a body with the following fields
         # A unique id for each request
@@ -46,3 +46,13 @@ class conversions:
             requests_json.append(request.dict())
         return requests_json
     
+# A class containing three asuncio events
+class Flags():
+    def __init__(self):
+        self.history_update = asyncio.Event()
+        self.requests_update = asyncio.Event()
+        self.members_update = asyncio.Event()
+    
+    history_update: asyncio.Event
+    requests_update: asyncio.Event
+    members_update: asyncio.Event
