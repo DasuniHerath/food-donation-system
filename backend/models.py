@@ -24,6 +24,23 @@ class request_body(BaseModel):
             **super().model_dump(),
             "time": self.time.isoformat() # Convert datetime to string in ISO 8601 format
         }
+    
+class delivery_body(BaseModel):
+    id: int
+    name: str = "Restaurant"
+    category: int
+    amount: int
+    time: datetime = datetime.now()
+    status: int = 0
+    donorAddress: str
+    communityAddress: str
+
+    # Convert datetime to string in ISO 8601 format
+    def dict(self):
+        return {
+            **super().model_dump(),
+            "time": self.time.isoformat() # Convert datetime to string in ISO 8601 format
+        }
 
 class member_body(BaseModel):
     id: int
@@ -36,18 +53,30 @@ class request_item(BaseModel):
     category: int
     amount: int
 
+class delivery_item(BaseModel):
+    id: int
+    category: int
+    amount: int
+    donorAddress: str
+    communityAddress: str
+
+class reason(BaseModel):
+    reason: str
+
 # Convert a request_body to json
 class conversions:
     @staticmethod
     def request_to_json(requests):
         # return json.dumps([request.dict() for request in requests])
         requests_json = []
+        if isinstance(requests, tuple):
+            requests = [requests]
         for request in requests:
             requests_json.append(request.dict())
         return requests_json
     
 # A class containing three asuncio events
-class Flags():
+class flagsOrg():
     def __init__(self):
         self.history_update = asyncio.Event()
         self.requests_update = asyncio.Event()
@@ -56,3 +85,17 @@ class Flags():
     history_update: asyncio.Event
     requests_update: asyncio.Event
     members_update: asyncio.Event
+
+class flagsDon():
+    def __init__(self):
+        self.history_update = asyncio.Event()
+        self.requests_update = asyncio.Event()
+
+    history_update: asyncio.Event
+    requests_update: asyncio.Event
+
+class flagsMem():
+    def __init__(self):
+        self.delivery_update = asyncio.Event()
+    
+    delivery_update: asyncio.Event

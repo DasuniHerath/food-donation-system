@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:web_socket_channel/io.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'dart:io';
 
 class MemberApp extends StatelessWidget {
   const MemberApp({super.key});
@@ -14,18 +18,71 @@ class MemberApp extends StatelessWidget {
 }
 
 class MemberAppState extends ChangeNotifier {
-  var history = <Delivery>[];
-  var deliveries = <Delivery>[
-    Delivery(
-      date: '2021-10-01',
-      time: '10:00',
-      category: 'Bread',
-      amount: 10,
-      donorAddress: '123 Main St',
-      communityAddress: '456 Main St',
-      icon: const Icon(Icons.breakfast_dining),
-    ),
-  ];
+  var deliveries = <Delivery>[];
+
+  final wsUrlDelivery = Uri.parse(Platform.isAndroid
+      ? 'ws://10.0.2.2:8000/memberdelivery'
+      : 'ws://localhost:8000/memberdelivery');
+
+  late IOWebSocketChannel wsDeliveryChannel;
+
+  bool iswsDeliveryConnected = false;
+
+  void connectwsDelivery() async {
+    if (iswsDeliveryConnected) return;
+    wsDeliveryChannel = IOWebSocketChannel.connect(wsUrlDelivery);
+    await wsDeliveryChannel.ready;
+    wsDeliveryChannel.sink.add('member1');
+    iswsDeliveryConnected = true;
+    wsDeliveryChannel.stream.listen((message) {
+      updateDelivry(message);
+    });
+  }
+
+  void updateDelivry(String message) {
+    List<dynamic> jsonData = jsonDecode(message);
+    deliveries = jsonData.map((data) => Delivery.fromJson(data)).toList();
+    notifyListeners();
+  }
+
+  Future<http.Response> setStatusActive(bool status) async {
+    return http.put(
+      Uri.parse(Platform.isAndroid
+          ? 'http://10.0.2.2:8000/change_status/?status=$status'
+          : 'http://localhost:8000/change_status/?status=$status'),
+      headers: <String, String>{
+        'Content-Type': 'application/json; charset=UTF-8',
+        'Authorization': 'bearer member1',
+      },
+    );
+  }
+
+  Future<http.Response> getStauts() async {
+    return http.get(
+      Uri.parse(Platform.isAndroid
+          ? 'http://10.0.2.2:8000/get_status/'
+          : 'http://localhost:8000/get_status/'),
+      headers: <String, String>{
+        'Content-Type': 'application/json; charset=UTF-8',
+        'Authorization': 'bearer member1',
+      },
+    );
+  }
+
+  Future<http.Response> rejectDelivery(String reason) async {
+    return http.delete(
+      Uri.parse(Platform.isAndroid
+          ? 'http://10.0.2.2:8000/reject_delivery/'
+          : 'http://localhost:8000/reject_delivery/'),
+      headers: <String, String>{
+        'Content-Type': 'application/json; charset=UTF-8',
+        'Authorization': 'bearer member1',
+      },
+      body: jsonEncode(<String, String>{
+        'reason': reason,
+      }),
+    );
+  }
 }
 
 class OrgNavigationBar extends StatefulWidget {
@@ -84,6 +141,7 @@ class _RequestPageState extends State<RequestPage> {
   @override
   Widget build(BuildContext context) {
     var appState = context.watch<MemberAppState>();
+    appState.connectwsDelivery();
 
     return Column(
       children: [
@@ -102,6 +160,7 @@ class _RequestPageState extends State<RequestPage> {
           onChanged: (bool value) {
             setState(() {
               toggle = !toggle;
+              appState.setStatusActive(toggle);
             });
           },
           activeColor: Colors.green,
@@ -323,6 +382,42 @@ class Delivery {
     required this.communityAddress,
     required this.icon,
   });
+
+  // A dictionary to get category name and icon from category id
+  static const categoryDict = {
+    '1': {
+      'name': 'Rice',
+      'icon': Icon(Icons.rice_bowl),
+    },
+    '2': {'name': 'Bread', 'icon': Icon(Icons.breakfast_dining)},
+    '3': {'name': 'Fast Food', 'icon': Icon(Icons.fastfood)},
+  };
+
+  // A dictionary to get status name from status id
+  static const statusDict = {
+    '0': 'Waiting',
+    '1': 'Delivering',
+    '2': 'Found',
+    '3': 'Cancelled',
+  };
+
+  factory Delivery.fromJson(Map<String, dynamic> json) {
+    // Convert ISO 8601 format datetime into date and time
+    var date = DateTime.parse(json['time']);
+    var formattedDate = '${date.day}/${date.month}/${date.year}';
+    var formattedTime =
+        '${date.hour}:${date.minute.toString().padLeft(2, '0')}';
+
+    return Delivery(
+      date: formattedDate,
+      time: formattedTime,
+      category: categoryDict[json['category'].toString()]!['name']! as String,
+      amount: json['amount'],
+      donorAddress: json['donorAddress'],
+      communityAddress: json['communityAddress'],
+      icon: (categoryDict[json['category'].toString()]!['icon']! as Icon),
+    );
+  }
 }
 
 class RejectPage extends StatefulWidget {
@@ -372,7 +467,10 @@ class RejectPageState extends State<RejectPage> {
             ],
             const SizedBox(height: 16),
             ElevatedButton(
-              onPressed: () {},
+              onPressed: () {
+                MemberAppState().rejectDelivery(dropdownValue);
+                Navigator.pop(context);
+              },
               child: const Text('Submit'),
             ),
           ],

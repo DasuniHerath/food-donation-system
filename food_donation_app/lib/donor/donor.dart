@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:web_socket_channel/io.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'dart:io';
 
 class DonorApp extends StatelessWidget {
   const DonorApp({super.key});
@@ -15,32 +19,78 @@ class DonorApp extends StatelessWidget {
 
 class DonorAppState extends ChangeNotifier {
   var history = <Request>[];
-  var requests = <Request>[
-    Request(
-        date: '12/12/2021',
-        charityName: 'Compassion Connection',
-        category: 'Rice',
-        amount: 10,
-        status: 'Delivering',
-        icon: const Icon(Icons.rice_bowl),
-        time: '12:00 PM'),
-    Request(
-        date: '12/12/2021',
-        charityName: 'Unity Umbrella',
-        category: 'Bread',
-        amount: 5,
-        status: 'Waiting',
-        icon: const Icon(Icons.breakfast_dining),
-        time: '12:00 PM'),
-    Request(
-        date: '11/04/2021',
-        charityName: 'Hope Horizon',
-        category: 'Fast Food',
-        amount: 2,
-        status: 'Found',
-        icon: const Icon(Icons.fastfood),
-        time: '12:00 PM'),
-  ];
+  var requests = <Request>[];
+
+  final wsUrlDonRequests = Uri.parse(Platform.isAndroid
+      ? 'ws://10.0.2.2:8000/donorrequests'
+      : 'ws://localhost:8000/donorrequests');
+  final wsUrlDonHistory = Uri.parse(Platform.isAndroid
+      ? 'ws://10.0.2.2:8000/donorhistory'
+      : 'ws://localhost:8000/donorhistory');
+
+  late IOWebSocketChannel channelDonRequests;
+  late IOWebSocketChannel channelDonHistory;
+
+  bool isDonRequestsConnected = false;
+  bool isDonHistoryConnected = false;
+
+  void connectDonRequests() async {
+    if (isDonRequestsConnected) return;
+    channelDonRequests = IOWebSocketChannel.connect(wsUrlDonRequests);
+    await channelDonRequests.ready;
+    channelDonRequests.sink.add('donor1');
+    isDonRequestsConnected = true;
+    channelDonRequests.stream.listen((message) {
+      updateDonRequests(message);
+    });
+  }
+
+  void updateDonRequests(String message) {
+    List<dynamic> jsonData = jsonDecode(message);
+    requests = jsonData.map((data) => Request.fromJson(data)).toList();
+    notifyListeners();
+  }
+
+  void connectDonHistory() async {
+    if (isDonHistoryConnected) return;
+    channelDonHistory = IOWebSocketChannel.connect(wsUrlDonHistory);
+    await channelDonHistory.ready;
+    channelDonHistory.sink.add('donor1');
+    isDonHistoryConnected = true;
+    channelDonHistory.stream.listen((message) {
+      updateDonHistory(message);
+    });
+  }
+
+  void updateDonHistory(String message) {
+    List<dynamic> jsonData = jsonDecode(message);
+    history = jsonData.map((data) => Request.fromJson(data)).toList();
+    notifyListeners();
+  }
+
+  Future<http.Response> acceptDonRequest(int id) async {
+    return http.put(
+      Uri.parse(Platform.isAndroid
+          ? 'http://10.0.2.2:8000/accept_donation/?id=$id'
+          : 'http://localhost:8000/accept_donation/?id=$id'),
+      headers: <String, String>{
+        'Content-Type': 'application/json; charset=UTF-8',
+        'Authorization': 'bearer donor1',
+      },
+    );
+  }
+
+  Future<http.Response> rejectDonRequest(int id) async {
+    return http.delete(
+      Uri.parse(Platform.isAndroid
+          ? 'http://10.0.2.2:8000/reject_donation/?id=$id'
+          : 'http://localhost:8000/reject_donation/?id=$id'),
+      headers: <String, String>{
+        'Content-Type': 'application/json; charset=UTF-8',
+        'Authorization': 'bearer donor1',
+      },
+    );
+  }
 }
 
 class OrgNavigationBar extends StatefulWidget {
@@ -92,6 +142,7 @@ class RequestPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     var appState = context.watch<DonorAppState>();
+    appState.connectDonRequests();
 
     return Column(
       children: [
@@ -119,6 +170,7 @@ class HistoryPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     var appState = context.watch<DonorAppState>();
+    appState.connectDonHistory();
 
     return ListView(
       children: [
@@ -335,7 +387,10 @@ class RequestBottomSheet extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 ElevatedButton(
-                  onPressed: () {},
+                  onPressed: () {
+                    appState.acceptDonRequest(request.id);
+                    Navigator.pop(context);
+                  },
                   style: ButtonStyle(
                     backgroundColor:
                         MaterialStateProperty.all<Color>(Colors.deepOrange),
@@ -352,7 +407,10 @@ class RequestBottomSheet extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 ElevatedButton(
-                  onPressed: () {},
+                  onPressed: () {
+                    appState.rejectDonRequest(request.id);
+                    Navigator.pop(context);
+                  },
                   style: ButtonStyle(
                     minimumSize:
                         MaterialStateProperty.all<Size>(const Size(100, 50)),
@@ -429,6 +487,7 @@ class HistoryBottomSheet extends StatelessWidget {
 }
 
 class Request {
+  final int id;
   final String date;
   final String charityName;
   final String category;
@@ -438,6 +497,7 @@ class Request {
   final Icon icon;
 
   Request({
+    required this.id,
     required this.date,
     required this.charityName,
     required this.category,
@@ -446,4 +506,41 @@ class Request {
     required this.time,
     required this.icon,
   });
+
+  // A dictionary to get category name and icon from category id
+  static const categoryDict = {
+    '1': {
+      'name': 'Rice',
+      'icon': Icon(Icons.rice_bowl),
+    },
+    '2': {'name': 'Bread', 'icon': Icon(Icons.breakfast_dining)},
+    '3': {'name': 'Fast Food', 'icon': Icon(Icons.fastfood)},
+  };
+
+  // A dictionary to get status name from status id
+  static const statusDict = {
+    '0': 'Waiting',
+    '1': 'Delivering',
+    '2': 'Found',
+    '3': 'Cancelled',
+  };
+
+  factory Request.fromJson(Map<String, dynamic> json) {
+    // Convert ISO 8601 format datetime into date and time
+    var date = DateTime.parse(json['time']);
+    var formattedDate = '${date.day}/${date.month}/${date.year}';
+    var formattedTime =
+        '${date.hour}:${date.minute.toString().padLeft(2, '0')}';
+
+    return Request(
+      id: json['id'],
+      date: formattedDate,
+      charityName: json['name'],
+      category: categoryDict[json['category'].toString()]!['name']! as String,
+      amount: json['amount'],
+      status: statusDict[json['status'].toString()]!,
+      time: formattedTime,
+      icon: (categoryDict[json['category'].toString()]!['icon']! as Icon),
+    );
+  }
 }

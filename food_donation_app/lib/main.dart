@@ -18,9 +18,7 @@ class MyApp extends StatelessWidget {
           useMaterial3: true,
           colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepOrange)),
       home: const Scaffold(
-        body: OrganizationApp(
-          token: 'token1',
-        ),
+        body: MemberApp(),
       ),
     );
   }
