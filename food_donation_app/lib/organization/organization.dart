@@ -59,7 +59,7 @@ class OrganizationAppState extends ChangeNotifier {
     // wait until orgHistoryChannel connected and write a message to the socket
     await orgHistoryChannel.ready;
     // Write a message to the socket
-    orgHistoryChannel.sink.add('token1');
+    orgHistoryChannel.sink.add(token);
     isOrgHistoryConnected = true;
     orgHistoryChannel.stream.listen((message) {
       updateHistory(message);
@@ -80,7 +80,7 @@ class OrganizationAppState extends ChangeNotifier {
     orgRequestsChannel = IOWebSocketChannel.connect(wsUrlOrgRequests);
     await orgRequestsChannel.ready;
     // Write a message to the socket
-    orgRequestsChannel.sink.add('token1');
+    orgRequestsChannel.sink.add(token);
     isOrgRequestsConnected = true;
     orgRequestsChannel.stream.listen((message) {
       updateRequests(message);
@@ -100,7 +100,7 @@ class OrganizationAppState extends ChangeNotifier {
     orgMembersChannel = IOWebSocketChannel.connect(wsUrlOrgMembers);
     await orgMembersChannel.ready;
     // Write a message to the socket
-    orgMembersChannel.sink.add('token1');
+    orgMembersChannel.sink.add(token);
     isOrgMembersConnected = true;
     orgMembersChannel.stream.listen((message) {
       updateMembers(message);

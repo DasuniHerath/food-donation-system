@@ -1,8 +1,11 @@
-from fastapi import FastAPI, Query, WebSocket, Depends,  HTTPException
+from fastapi import FastAPI, Query, WebSocket, Depends,  HTTPException, BackgroundTasks
 from fastapi.security import OAuth2PasswordBearer
 from datetime import datetime
-from models import request_body, member_body, delivery_body, request_item, delivery_item, conversions, flagsDon, flagsOrg, flagsMem, reason
+from models import request_body, member_body, delivery_body, request_item, delivery_item, conversions, flagsDon, flagsOrg, flagsMem, reason, MemberSQL
 from users import organization, donor, member
+import uvicorn
+from sqlalchemy.orm import Session
+from database import SessionLocal, engine
 
 # Category limit
 CATEGORY_LIMIT = 3 
@@ -12,10 +15,7 @@ app = FastAPI()
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 # A dictionary containing membor_body objects key is memberid
-members_dict = {
-    1: member_body(id=1, name="Siraj", email="dfjdnf@jkd.com", phone='0123456789'),
-    2: member_body(id=2, name="Hassan", email="sknv@kfod.com", phone= '03432145')
-}
+members_dict = {}
 
 # A dictionary containing tokens key is organization id 
 orgUsers = {
@@ -42,6 +42,26 @@ members = {}
 orgFlags = {}
 donFlags = {}
 memFlags = {}
+
+# A dictionary with key is donor id and and value is a organitation id and request id pairs
+donor_org_requests = {}
+
+# Find donors for a request
+def find_donors(orgId: int, request: request_body):
+    # add to the requsts in donor objects in donors
+    for donor in donors.values():
+        # create a new request object from the request and change its id to the donor requests last id + 1
+        next_id = get_next_id_don(donor.id)
+        request = request_body(id=next_id, name="kindheart", category=request.category, amount=request.amount, time=request.time)
+        donor.requests.append(request)
+        # add the request to the donor_org_requests dictionary
+        # if the donor is not in the dictionary add it
+        if donor.id not in donor_org_requests:
+            donor_org_requests[donor.id] = []
+        # add the request to the donor_org_requests dictionary
+        donor_org_requests[donor.id].append((next_id, orgId, request.id))
+        print(donor_org_requests)
+        donFlags[donor.id].requests_update.set()
 
 
 def get_current_user(token: str = Depends(oauth2_scheme)):
@@ -124,17 +144,25 @@ async def add_organization(user_id: int = Depends(get_current_user)):
 
 # Post request to add a new request wich get category and amount as query parameters using request body
 @app.post("/add_request/")
-async def add_request(request_item: request_item, user_id: int = Depends(get_current_user)):
+async def add_request(request_item: request_item, background_tasks: BackgroundTasks, user_id: int = Depends(get_current_user),):
     # Check if the category is valid
     if request_item.category < 0 or request_item.category > CATEGORY_LIMIT:
         return {"message": "Invalid category"}
     # Check if the amount is valid
     if request_item.amount < 1:
         return {"message": "Invalid amount"}
-    # Add the request to requests list
-    get_organization_by_id(user_id).requests.append(request_body(id=get_next_id_org(user_id), category=request_item.category, amount=request_item.amount, time=datetime.now()))
     
+    # create a request object
+    newReq = request_body(id=get_next_id_org(user_id), category=request_item.category, amount=request_item.amount, time=datetime.now())
+
+    # Add the request to requests list
+    get_organization_by_id(user_id).requests.append(newReq)
     orgFlags[user_id].requests_update.set()
+
+
+    # Find donors for the request
+    background_tasks.add_task(find_donors, user_id, newReq)
+
     # Return the id of the request
     return {"message": "Request added successfully", "id": get_organization_by_id(user_id).requests[-1].id}
 
@@ -164,6 +192,23 @@ async def delete_request(id: int, user_id: int = Depends(get_current_user)):
     get_organization_by_id(user_id).history.append(get_organization_by_id(user_id).requests[find_the_index(user_id, id)])
     orgFlags[user_id].history_update.set()
     get_organization_by_id(user_id).requests.pop(find_the_index(user_id, id))
+
+    # Find the donor from donor_org_requests dictionary and change the status of the request to 3 and add it to the donor history
+    for req_id in donor_org_requests[user_id]:
+        if req_id[0] == id:
+            donors[req_id[1]].requests[find_the_index_donor(req_id[1], req_id[2])].status = 3
+            donors[req_id[1]].history.append(donors[req_id[1]].requests[find_the_index_donor(req_id[1], req_id[2])])
+            donFlags[req_id[1]].history_update.set()
+            donors[req_id[1]].requests.pop(find_the_index_donor(req_id[1], req_id[2]))
+            donFlags[req_id[1]].requests_update.set()
+            break
+    
+    # Delete the request from the donor_org_requests dictionary by its id
+    for req_id in donor_org_requests[user_id]:
+        if req_id[0] == id:
+            donor_org_requests[user_id].remove(req_id)
+            break
+
     orgFlags[user_id].requests_update.set()
     # Return the all history    
     return {"message": "Request deleted successfully"}
@@ -287,6 +332,13 @@ async def reject_donation(id: int, user_id: int = Depends(get_current_donUser)):
     donFlags[user_id].requests_update.set()
     donFlags[user_id].history_update.set()
 
+    # delete the request from the donor_org_requests dictionary by its id
+    for req_id in donor_org_requests[user_id]:
+        if req_id[0] == id:
+            donor_org_requests[user_id].remove(req_id)
+            break
+    print(donor_org_requests)
+
     return {"message": "Donation rejected successfully"}
 
 @app.get("/get_donation_history/")
@@ -303,6 +355,35 @@ async def change_status(id: int, user_id: int = Depends(get_current_donUser)):
         return {"message": "Invalid id"}
     # Change the status of the donation
     donors[user_id].requests[find_the_index_donor(user_id, id)].status = 2
+
+    # get the organization id and request id from donor_org_requests dictionary
+    org_id = None
+    req_id = None
+    for req in donor_org_requests[user_id]:
+        if req[0] == id:
+            org_id = req[1]
+            req_id = req[2]
+            break
+    # Change the status of the request in the organization
+    get_organization_by_id(org_id).requests[find_the_index(org_id, req_id)].status = 2
+
+    # Set org flag up
+    orgFlags[org_id].requests_update.set()
+
+    # Get an available member from the organization and assign the delivery to him
+    for member in get_organization_by_id(org_id).members:
+        if member.status == 0:
+            member.status = 1
+            members[member.id].delivery = delivery_body(id=id, category=donors[user_id].requests[find_the_index_donor(user_id, id)].category, amount=donors[user_id].requests[find_the_index_donor(user_id, id)].amount, time=datetime.now(), donorAddress="donorAddress", communityAddress="communityAddress")
+            # Update member in request_body for both organization and donor
+            get_organization_by_id(org_id).requests[find_the_index(org_id, req_id)].member = member.id
+            donors[user_id].requests[find_the_index_donor(user_id, id)].member = member.id
+            # Set the flags up
+            orgFlags[org_id].requests_update.set()
+            donFlags[user_id].requests_update.set()
+            break
+    # todo: handle if there is no available member
+
     # Set the flag up
     donFlags[user_id].requests_update.set()
     # Return the all history
@@ -362,6 +443,8 @@ async def assign_delivery(delivery_item: delivery_item, user_id: int = Depends(g
         donorAddress=delivery_item.donorAddress, 
         communityAddress=delivery_item.communityAddress
     )
+
+    memFlags[user_id].delivery_update.set()
     # Return the id of the delivery
     return {"message": "Delivery assigned successfully", "id": delivery_item.id}
 
@@ -412,3 +495,40 @@ async def websocket_endpoint(websocket: WebSocket):
     await websocket.close()
 
 
+
+# Main function
+if __name__ == "__main__":
+    # Create all tables
+    MemberSQL.metadata.create_all(bind=engine)
+    # Create a session
+    db = SessionLocal()
+    # Fetch all members from database and add to members dictionary
+    for mem in db.query(MemberSQL).all():
+        members_dict[mem.id] = member_body(id=mem.id, name=mem.name, email=mem.email, phone=mem.phone)
+
+
+    # Add three organizations
+    organizations.append(organization(id=1, requests=[], history=[], members=[]))
+    organizations.append(organization(id=2, requests=[], history=[], members=[]))
+    organizations.append(organization(id=3, requests=[], history=[], members=[]))
+    orgFlags[1] = flagsOrg()
+    orgFlags[2] = flagsOrg()
+    orgFlags[3] = flagsOrg()
+
+    # Add three donors
+    donors[1] = donor(id=1, requests=[], history=[])
+    donors[2] = donor(id=2, requests=[], history=[])
+    donors[3] = donor(id=3, requests=[], history=[])
+    donFlags[1] = flagsDon()
+    donFlags[2] = flagsDon()
+    donFlags[3] = flagsDon()
+
+    # Add two members
+    members[1] = member(id=1, status=False, delivery=None)
+    members[2] = member(id=2, status=False, delivery=None)
+    memFlags[1] = flagsMem()
+    memFlags[2] = flagsMem()
+
+    # start the server
+    uvicorn.run(app)
+    

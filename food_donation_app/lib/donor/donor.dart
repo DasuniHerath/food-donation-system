@@ -6,18 +6,23 @@ import 'dart:convert';
 import 'dart:io';
 
 class DonorApp extends StatelessWidget {
-  const DonorApp({super.key});
+  const DonorApp({super.key, required this.token});
+  final String token;
 
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
-      create: (context) => DonorAppState(),
+      create: (context) => DonorAppState(token: token),
       child: const OrgNavigationBar(),
     );
   }
 }
 
 class DonorAppState extends ChangeNotifier {
+  DonorAppState({required this.token});
+
+  final String token;
+
   var history = <Request>[];
   var requests = <Request>[];
 
@@ -38,7 +43,7 @@ class DonorAppState extends ChangeNotifier {
     if (isDonRequestsConnected) return;
     channelDonRequests = IOWebSocketChannel.connect(wsUrlDonRequests);
     await channelDonRequests.ready;
-    channelDonRequests.sink.add('donor1');
+    channelDonRequests.sink.add(token);
     isDonRequestsConnected = true;
     channelDonRequests.stream.listen((message) {
       updateDonRequests(message);
@@ -55,7 +60,7 @@ class DonorAppState extends ChangeNotifier {
     if (isDonHistoryConnected) return;
     channelDonHistory = IOWebSocketChannel.connect(wsUrlDonHistory);
     await channelDonHistory.ready;
-    channelDonHistory.sink.add('donor1');
+    channelDonHistory.sink.add(token);
     isDonHistoryConnected = true;
     channelDonHistory.stream.listen((message) {
       updateDonHistory(message);
@@ -75,7 +80,7 @@ class DonorAppState extends ChangeNotifier {
           : 'http://localhost:8000/accept_donation/?id=$id'),
       headers: <String, String>{
         'Content-Type': 'application/json; charset=UTF-8',
-        'Authorization': 'bearer donor1',
+        'Authorization': 'bearer $token',
       },
     );
   }
@@ -87,7 +92,7 @@ class DonorAppState extends ChangeNotifier {
           : 'http://localhost:8000/reject_donation/?id=$id'),
       headers: <String, String>{
         'Content-Type': 'application/json; charset=UTF-8',
-        'Authorization': 'bearer donor1',
+        'Authorization': 'bearer $token',
       },
     );
   }

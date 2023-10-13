@@ -1,6 +1,18 @@
 from datetime import datetime
 from pydantic import BaseModel
 import asyncio
+from sqlalchemy import Column, Integer, String
+from sqlalchemy.ext.declarative import declarative_base
+
+Base = declarative_base()
+
+class MemberSQL(Base):
+    __tablename__ = "members"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, index=True)
+    email = Column(String, unique=True, index=True)
+    phone = Column(String, index=True)
 
 # Request should have a body with the following fields
         # A unique id for each request

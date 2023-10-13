@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:food_donation_app/donor/donor.dart';
 import 'package:food_donation_app/organization/organization.dart';
 import 'member/member.dart';
+import 'package:http/http.dart' as http;
+import 'dart:io';
 
 void main() => runApp(const MyApp());
 
@@ -18,7 +20,7 @@ class MyApp extends StatelessWidget {
           useMaterial3: true,
           colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepOrange)),
       home: const Scaffold(
-        body: MemberApp(),
+        body: LoginPage(),
       ),
     );
   }
@@ -34,6 +36,76 @@ class LoginPage extends StatefulWidget {
 class _LoginPageState extends State<LoginPage> {
   TextEditingController nameController = TextEditingController();
   TextEditingController passwordController = TextEditingController();
+
+  // Username password combination for testing
+  Map<String, String> passwordMap = {
+    "user1": "12,34,56",
+    "user2": "12,34,56",
+    "user3": "12,34,56",
+  };
+
+  //  Username token combinations
+  Map<String, String> tokenMap = {
+    "user1": "token1",
+    "user2": "donor1",
+    "user3": "member1",
+  };
+
+  //  Username user type combinations
+  Map<String, int> typeMap = {
+    "user1": 1,
+    "user2": 2,
+    "user3": 3,
+  };
+
+  bool validate(String username, String password) {
+    if (passwordMap.containsKey(username) == false) {
+      return false;
+    } else if (passwordMap[username] == password) {
+      return true;
+    }
+    return false;
+  }
+
+  String getToken(String username) {
+    return tokenMap[username]!;
+  }
+
+  Future<http.Response> addOrgToServer(String token) async {
+    return http.post(
+      Uri.parse(Platform.isAndroid
+          ? 'http://10.0.2.2:8000/add_organization/'
+          : 'http://localhost:8000/add_organization/'),
+      headers: <String, String>{
+        'Content-Type': 'application/json; charset=UTF-8',
+        'Authorization': 'Bearer $token',
+      },
+    );
+  }
+
+  Future<http.Response> addDonToServer(String token) async {
+    return http.post(
+      Uri.parse(Platform.isAndroid
+          ? 'http://10.0.2.2:8000/add_donor/'
+          : 'http://localhost:8000/add_donor/'),
+      headers: <String, String>{
+        'Content-Type': 'application/json; charset=UTF-8',
+        'Authorization': 'Bearer $token',
+      },
+    );
+  }
+
+  Future<http.Response> addMemToServer(String token) async {
+    return http.post(
+      Uri.parse(Platform.isAndroid
+          ? 'http://10.0.2.2:8000/load_member/'
+          : 'http://localhost:8000/load_member/'),
+      headers: <String, String>{
+        'Content-Type': 'application/json; charset=UTF-8',
+        'Authorization': 'Bearer $token',
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -87,6 +159,50 @@ class _LoginPageState extends State<LoginPage> {
                   child: const Text('Login'),
                   onPressed: () {
                     // Handle login
+                    if (validate(
+                        nameController.text, passwordController.text)) {
+                      if (typeMap[nameController.text] == 1) {
+                        addOrgToServer(getToken(nameController.text));
+                        Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                                builder: (context) => OrganizationApp(
+                                      token: getToken(nameController.text),
+                                    )));
+                      } else if (typeMap[nameController.text] == 2) {
+                        addDonToServer(getToken(nameController.text));
+                        Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                                builder: (context) => DonorApp(
+                                    token: getToken(nameController.text))));
+                      } else if (typeMap[nameController.text] == 3) {
+                        addMemToServer(getToken(nameController.text));
+                        Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                                builder: (context) => MemberApp(
+                                    token: getToken(nameController.text))));
+                      }
+                    } else {
+                      // Show error message
+                      showDialog(
+                          context: context,
+                          builder: (BuildContext context) {
+                            return AlertDialog(
+                              title: const Text("Error"),
+                              content: const Text(
+                                  "Invalid username or password. Please try again."),
+                              actions: [
+                                TextButton(
+                                    onPressed: () {
+                                      Navigator.of(context).pop();
+                                    },
+                                    child: const Text("Close"))
+                              ],
+                            );
+                          });
+                    }
                   }),
             ),
             Row(

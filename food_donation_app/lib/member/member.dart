@@ -6,18 +6,29 @@ import 'dart:convert';
 import 'dart:io';
 
 class MemberApp extends StatelessWidget {
-  const MemberApp({super.key});
+  const MemberApp({
+    super.key,
+    required this.token,
+  });
+
+  final String token;
 
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
-      create: (context) => MemberAppState(),
+      create: (context) => MemberAppState(token: token),
       child: const OrgNavigationBar(),
     );
   }
 }
 
 class MemberAppState extends ChangeNotifier {
+  MemberAppState({
+    required this.token,
+  });
+
+  final String token;
+
   var deliveries = <Delivery>[];
 
   final wsUrlDelivery = Uri.parse(Platform.isAndroid
@@ -32,7 +43,7 @@ class MemberAppState extends ChangeNotifier {
     if (iswsDeliveryConnected) return;
     wsDeliveryChannel = IOWebSocketChannel.connect(wsUrlDelivery);
     await wsDeliveryChannel.ready;
-    wsDeliveryChannel.sink.add('member1');
+    wsDeliveryChannel.sink.add(token);
     iswsDeliveryConnected = true;
     wsDeliveryChannel.stream.listen((message) {
       updateDelivry(message);
@@ -52,7 +63,7 @@ class MemberAppState extends ChangeNotifier {
           : 'http://localhost:8000/change_status/?status=$status'),
       headers: <String, String>{
         'Content-Type': 'application/json; charset=UTF-8',
-        'Authorization': 'bearer member1',
+        'Authorization': 'bearer $token',
       },
     );
   }
@@ -64,7 +75,7 @@ class MemberAppState extends ChangeNotifier {
           : 'http://localhost:8000/get_status/'),
       headers: <String, String>{
         'Content-Type': 'application/json; charset=UTF-8',
-        'Authorization': 'bearer member1',
+        'Authorization': 'bearer $token',
       },
     );
   }
@@ -76,7 +87,7 @@ class MemberAppState extends ChangeNotifier {
           : 'http://localhost:8000/reject_delivery/'),
       headers: <String, String>{
         'Content-Type': 'application/json; charset=UTF-8',
-        'Authorization': 'bearer member1',
+        'Authorization': 'bearer $token',
       },
       body: jsonEncode(<String, String>{
         'reason': reason,
@@ -174,6 +185,7 @@ class _RequestPageState extends State<RequestPage> {
                   padding: const EdgeInsets.only(bottom: 8.0),
                   child: DonorTile(
                     request: request,
+                    appsState: appState,
                   ),
                 ),
             ],
@@ -196,10 +208,12 @@ class ProfilePage extends StatelessWidget {
 
 class DonorTile extends StatelessWidget {
   final Delivery request;
+  final MemberAppState appsState;
 
   const DonorTile({
     Key? key,
     required this.request,
+    required this.appsState,
   }) : super(key: key);
 
   @override
@@ -212,7 +226,9 @@ class DonorTile extends StatelessWidget {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => const RejectPage(),
+            builder: (context) => RejectPage(
+              appState: appsState,
+            ),
           ),
         );
       },
@@ -298,72 +314,6 @@ class DonorTile extends StatelessWidget {
   }
 }
 
-class HistoryTile extends StatelessWidget {
-  final Delivery request;
-
-  const HistoryTile({
-    Key? key,
-    required this.request,
-  }) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => const RejectPage(),
-          ),
-        );
-      },
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(8),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.grey.withOpacity(0.2),
-              spreadRadius: 1,
-              blurRadius: 3,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    request.date,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 18,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(request.category),
-                ],
-              ),
-            ),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(request.communityAddress),
-                const SizedBox(width: 8),
-                Text(request.time),
-              ],
-            )
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 class Delivery {
   final String date;
   final String time;
@@ -421,7 +371,8 @@ class Delivery {
 }
 
 class RejectPage extends StatefulWidget {
-  const RejectPage({super.key});
+  final MemberAppState appState;
+  const RejectPage({super.key, required this.appState});
 
   @override
   RejectPageState createState() => RejectPageState();
@@ -468,7 +419,11 @@ class RejectPageState extends State<RejectPage> {
             const SizedBox(height: 16),
             ElevatedButton(
               onPressed: () {
-                MemberAppState().rejectDelivery(dropdownValue);
+                if (dropdownValue == 'Other') {
+                  widget.appState.rejectDelivery(myController.text);
+                } else {
+                  widget.appState.rejectDelivery(dropdownValue);
+                }
                 Navigator.pop(context);
               },
               child: const Text('Submit'),
