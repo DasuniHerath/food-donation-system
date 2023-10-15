@@ -45,6 +45,8 @@ memFlags = {}
 
 # A dictionary with key is donor id and and value is a organitation id and request id pairs
 donor_org_requests = {}
+# A dictionary with key is member id and value is a tuple of orgnitation id, orgrequest id and donor id and donor request id
+member_don_org_requests = {}
 
 # Find donors for a request
 def find_donors(orgId: int, request: request_body):
@@ -193,21 +195,19 @@ async def delete_request(id: int, user_id: int = Depends(get_current_user)):
     orgFlags[user_id].history_update.set()
     get_organization_by_id(user_id).requests.pop(find_the_index(user_id, id))
 
-    # Find the donor from donor_org_requests dictionary and change the status of the request to 3 and add it to the donor history
-    for req_id in donor_org_requests[user_id]:
-        if req_id[0] == id:
-            donors[req_id[1]].requests[find_the_index_donor(req_id[1], req_id[2])].status = 3
-            donors[req_id[1]].history.append(donors[req_id[1]].requests[find_the_index_donor(req_id[1], req_id[2])])
-            donFlags[req_id[1]].history_update.set()
-            donors[req_id[1]].requests.pop(find_the_index_donor(req_id[1], req_id[2]))
-            donFlags[req_id[1]].requests_update.set()
-            break
-    
-    # Delete the request from the donor_org_requests dictionary by its id
-    for req_id in donor_org_requests[user_id]:
-        if req_id[0] == id:
-            donor_org_requests[user_id].remove(req_id)
-            break
+    # delete the request from the donor_org_requests dictionary and all donors
+    for key, value in donor_org_requests.items():
+        for req in value:
+            if req[2] == id:
+                index = find_the_index_donor(key, req[0])
+                donors[key].requests[index].status = 3
+                donors[key].history.append(donors[key].requests[index])
+                donors[key].requests.pop(index)
+                donFlags[key].requests_update.set()
+                donFlags[key].history_update.set()
+                donor_org_requests[key].remove(req)
+
+
 
     orgFlags[user_id].requests_update.set()
     # Return the all history    
@@ -359,21 +359,27 @@ async def change_status(id: int, user_id: int = Depends(get_current_donUser)):
     # get the organization id and request id from donor_org_requests dictionary
     org_id = None
     req_id = None
-    for req in donor_org_requests[user_id]:
-        if req[0] == id:
-            org_id = req[1]
-            req_id = req[2]
-            break
+    for key, value in donor_org_requests.items():
+        if key == user_id:
+            for req in value:
+                if req[0] == id:
+                    org_id = req[1]
+                    req_id = req[2]
+                    break
+        else:
+            for req in value:
+                if req[0] == id:
+                    # delete the request from the donor_org_requests dictionary
+                    donor_org_requests[key].remove(req)
     # Change the status of the request in the organization
     get_organization_by_id(org_id).requests[find_the_index(org_id, req_id)].status = 2
 
-    # Set org flag up
+    # Set org flag up    
     orgFlags[org_id].requests_update.set()
 
     # Get an available member from the organization and assign the delivery to him
     for member in get_organization_by_id(org_id).members:
-        if member.status == 0:
-            member.status = 1
+        if members[member.id].status == 1 and members[member.id].delivery == None:
             members[member.id].delivery = delivery_body(id=id, category=donors[user_id].requests[find_the_index_donor(user_id, id)].category, amount=donors[user_id].requests[find_the_index_donor(user_id, id)].amount, time=datetime.now(), donorAddress="donorAddress", communityAddress="communityAddress")
             # Update member in request_body for both organization and donor
             get_organization_by_id(org_id).requests[find_the_index(org_id, req_id)].member = member.id
@@ -381,8 +387,12 @@ async def change_status(id: int, user_id: int = Depends(get_current_donUser)):
             # Set the flags up
             orgFlags[org_id].requests_update.set()
             donFlags[user_id].requests_update.set()
+            memFlags[member.id].delivery_update.set()
             break
     # todo: handle if there is no available member
+
+    # Add to member_don_org_requests dictionary
+    member_don_org_requests[member.id] = (org_id, req_id, user_id, id)
 
     # Set the flag up
     donFlags[user_id].requests_update.set()
@@ -480,7 +490,43 @@ async def reject_delivery(reason: reason, user_id: int = Depends(get_current_mem
     # Set the flag up
     memFlags[user_id].delivery_update.set()
     print(reason.reason)
+
+    # Find the indexes of requests
+    org_index = find_the_index(member_don_org_requests[user_id][0], member_don_org_requests[user_id][1])
+    don_index = find_the_index_donor(member_don_org_requests[user_id][2], member_don_org_requests[user_id][3])
+    # Change status in organization and donor
+    get_organization_by_id(member_don_org_requests[user_id][0]).requests[org_index].status = 3
+    donors[member_don_org_requests[user_id][2]].requests[don_index].status = 3
+    # Add to history
+    get_organization_by_id(member_don_org_requests[user_id][0]).history.append(get_organization_by_id(member_don_org_requests[user_id][0]).requests[org_index])
+    donors[member_don_org_requests[user_id][2]].history.append(donors[member_don_org_requests[user_id][2]].requests[don_index])
+    # Remove from requests
+    get_organization_by_id(member_don_org_requests[user_id][0]).requests.pop(org_index)
+    donors[member_don_org_requests[user_id][2]].requests.pop(don_index)
+
     return {"message": "Delivery rejected successfully"}
+
+# Update the status of a delivery
+@app.put("/update_delivery/")
+async def update_delivery(newState: int, user_id: int = Depends(get_current_memUser)):
+    # Check if the new state is valid
+    if newState not in [1, 2]:
+        return {"message": "Invalid state"}
+    # Check if the member has a delivery
+    if members[user_id].delivery == None:
+        return {"message": "No delivery"}
+    # Update the status of the delivery
+    members[user_id].delivery.status = newState
+    # Set the flag up
+    memFlags[user_id].delivery_update.set()
+    # Update the status of the delivery in organization and donor
+    org_index = find_the_index(member_don_org_requests[user_id][0], member_don_org_requests[user_id][1])
+    don_index = find_the_index_donor(member_don_org_requests[user_id][2], member_don_org_requests[user_id][3])
+    get_organization_by_id(member_don_org_requests[user_id][0]).requests[org_index].status = newState
+    donors[member_don_org_requests[user_id][2]].requests[don_index].status = newState
+    orgFlags[member_don_org_requests[user_id][0]].requests_update.set()
+    donFlags[member_don_org_requests[user_id][2]].requests_update.set()
+    return {"message": "Delivery updated successfully"}
 
 @app.websocket("/memberdelivery")
 async def websocket_endpoint(websocket: WebSocket):
@@ -524,7 +570,7 @@ if __name__ == "__main__":
     donFlags[3] = flagsDon()
 
     # Add two members
-    members[1] = member(id=1, status=False, delivery=None)
+    members[1] = member(id=1, status=True, delivery=None)
     members[2] = member(id=2, status=False, delivery=None)
     memFlags[1] = flagsMem()
     memFlags[2] = flagsMem()

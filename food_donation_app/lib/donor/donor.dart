@@ -123,6 +123,7 @@ class _OrgNavigationBarState extends State<OrgNavigationBar> {
             icon: Icon(Icons.fastfood),
             label: 'Request',
           ),
+          NavigationDestination(icon: Icon(Icons.favorite), label: 'Donate'),
           NavigationDestination(
             icon: Icon(Icons.history),
             label: 'History',
@@ -134,8 +135,41 @@ class _OrgNavigationBarState extends State<OrgNavigationBar> {
           alignment: Alignment.center,
           child: const RequestPage(),
         ),
+        Container(alignment: Alignment.center, child: const DonatePage()),
         Container(alignment: Alignment.center, child: const HistoryPage()),
       ][currentPageIndex],
+    );
+  }
+}
+
+class DonatePage extends StatelessWidget {
+  const DonatePage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    var appState = context.watch<DonorAppState>();
+    appState.connectDonRequests();
+
+    return Column(
+      children: [
+        Expanded(
+          child: ListView(
+            children: const [
+              // A TEXT
+              Padding(
+                padding: EdgeInsets.all(16.0),
+                child: Text(
+                  'Donate to a charity',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

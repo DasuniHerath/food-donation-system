@@ -38,6 +38,9 @@ class MemberAppState extends ChangeNotifier {
   late IOWebSocketChannel wsDeliveryChannel;
 
   bool iswsDeliveryConnected = false;
+  bool isStatusGot = false;
+
+  bool status = false;
 
   void connectwsDelivery() async {
     if (iswsDeliveryConnected) return;
@@ -68,8 +71,8 @@ class MemberAppState extends ChangeNotifier {
     );
   }
 
-  Future<http.Response> getStauts() async {
-    return http.get(
+  Future<http.Response> getStatus() async {
+    return await http.get(
       Uri.parse(Platform.isAndroid
           ? 'http://10.0.2.2:8000/get_status/'
           : 'http://localhost:8000/get_status/'),
@@ -149,11 +152,20 @@ class RequestPage extends StatefulWidget {
 class _RequestPageState extends State<RequestPage> {
   var toggle = false;
 
+  void initToggle() async {
+    var appState = context.read<MemberAppState>();
+    var response = await appState.getStatus();
+    if (response.statusCode == 200) {
+      var jsonData = jsonDecode(response.body);
+      toggle = jsonData['status'];
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     var appState = context.watch<MemberAppState>();
     appState.connectwsDelivery();
-
+    initToggle();
     return Column(
       children: [
         const SizedBox(height: 28),
@@ -191,7 +203,83 @@ class _RequestPageState extends State<RequestPage> {
             ],
           ),
         ),
+
+        // A row that containing a text and a button next to it
+        Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Delivery Status:  ',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const Text(
+                'Collected',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.green,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      showDialog(
+                        context: context,
+                        builder: (context) => DeliveryOptionsDialog(),
+                      ).then((value) {
+                        if (value != null) {
+                          setState(() {
+                            // Change the status
+                          });
+                        }
+                      });
+                    },
+                    child: const Text('Change'),
+                  ),
+                ),
+              )
+            ],
+          ),
+        ),
       ],
+    );
+  }
+}
+
+class DeliveryOptionsDialog extends StatelessWidget {
+  final List<String> deliveryOptions = [
+    'On the way',
+    'Collected',
+    'Delivering',
+    'Delivered'
+  ];
+
+  DeliveryOptionsDialog({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Delivery Status'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (var option in deliveryOptions)
+            ListTile(
+              title: Text(option),
+              onTap: () {
+                Navigator.pop(context, option);
+              },
+            ),
+        ],
+      ),
     );
   }
 }
