@@ -1,14 +1,20 @@
 from fastapi import FastAPI, Query, WebSocket, Depends,  HTTPException, BackgroundTasks
 from fastapi.security import OAuth2PasswordBearer
 from datetime import datetime
-from models import request_body, member_body, delivery_body, request_item, delivery_item, conversions, flagsDon, flagsOrg, flagsMem, reason, MemberSQL
+from models import request_body, member_body, delivery_body, request_item, delivery_item, conversions, flagsDon, flagsOrg, flagsMem, reason, MemberSQL, OrganizationSQL
 from users import organization, donor, member
 import uvicorn
 from sqlalchemy.orm import Session
 from database import SessionLocal, engine
 
 # Category limit
-CATEGORY_LIMIT = 3 
+CATEGORY_LIMIT = 3
+
+
+# Create all tables
+MemberSQL.metadata.create_all(bind=engine)
+# Create a session
+db = SessionLocal()
 
 app = FastAPI()
 
@@ -54,7 +60,9 @@ def find_donors(orgId: int, request: request_body):
     for donor in donors.values():
         # create a new request object from the request and change its id to the donor requests last id + 1
         next_id = get_next_id_don(donor.id)
-        request = request_body(id=next_id, name="kindheart", category=request.category, amount=request.amount, time=request.time)
+        # Fetch organization name from db
+        tmp_org = db.query(OrganizationSQL).filter(OrganizationSQL.id == orgId).first()
+        request = request_body(id=next_id, name= tmp_org.name, category=request.category, amount=request.amount, time=request.time)
         donor.requests.append(request)
         # add the request to the donor_org_requests dictionary
         # if the donor is not in the dictionary add it
@@ -270,8 +278,17 @@ async def add_member(memberid: int, user_id: int = Depends(get_current_user)):
     # Check if the memberid is valid
     if memberid < 1:
         return {"message": "Invalid memberid"}
+    # Fetch the member from db
+    tmp_member = db.query(MemberSQL).filter(MemberSQL.id == memberid).first()
+    # if the member is not in db return error
+    if tmp_member == None:
+        return {"message": "Invalid memberid"}
+    # convert the member to member_body
+    member = member_body(id=tmp_member.id, name=tmp_member.name, email=tmp_member.email, phone=tmp_member.phone)
     # Add the memberid to members list
-    get_organization_by_id(user_id).members.append(members_dict[memberid])
+    get_organization_by_id(user_id).members.append(member)
+    # Add the memberid to members dictionary
+    members_dict[memberid] = member
     # Set the flag up
     orgFlags[user_id].members_update.set()
     # Return the id of the member
@@ -372,7 +389,11 @@ async def change_status(id: int, user_id: int = Depends(get_current_donUser)):
                     # delete the request from the donor_org_requests dictionary
                     donor_org_requests[key].remove(req)
     # Change the status of the request in the organization
-    get_organization_by_id(org_id).requests[find_the_index(org_id, req_id)].status = 2
+    index = find_the_index(org_id, req_id)
+    get_organization_by_id(org_id).requests[index].status = 2
+    # fetch donor name from db
+    tmp_donor = db.query(OrganizationSQL).filter(OrganizationSQL.id == user_id).first()
+    get_organization_by_id(org_id).requests[index].name = tmp_donor.name
 
     # Set org flag up    
     orgFlags[org_id].requests_update.set()
@@ -380,7 +401,14 @@ async def change_status(id: int, user_id: int = Depends(get_current_donUser)):
     # Get an available member from the organization and assign the delivery to him
     for member in get_organization_by_id(org_id).members:
         if members[member.id].status == 1 and members[member.id].delivery == None:
-            members[member.id].delivery = delivery_body(id=id, category=donors[user_id].requests[find_the_index_donor(user_id, id)].category, amount=donors[user_id].requests[find_the_index_donor(user_id, id)].amount, time=datetime.now(), donorAddress="donorAddress", communityAddress="communityAddress")
+            members[member.id].delivery = delivery_body(
+                id=id, 
+                category=donors[user_id].requests[find_the_index_donor(user_id, id)].category, 
+                amount=donors[user_id].requests[find_the_index_donor(user_id, id)].amount, 
+                time=datetime.now(), 
+                donorAddress=tmp_donor.Address, 
+                communityAddress="communityAddress"
+            )
             # Update member in request_body for both organization and donor
             get_organization_by_id(org_id).requests[find_the_index(org_id, req_id)].member = member.id
             donors[user_id].requests[find_the_index_donor(user_id, id)].member = member.id
@@ -389,7 +417,8 @@ async def change_status(id: int, user_id: int = Depends(get_current_donUser)):
             donFlags[user_id].requests_update.set()
             memFlags[member.id].delivery_update.set()
             break
-    # todo: handle if there is no available member
+    # If there is no available member
+    
 
     # Add to member_don_org_requests dictionary
     member_don_org_requests[member.id] = (org_id, req_id, user_id, id)
@@ -510,7 +539,7 @@ async def reject_delivery(reason: reason, user_id: int = Depends(get_current_mem
 @app.put("/update_delivery/")
 async def update_delivery(newState: int, user_id: int = Depends(get_current_memUser)):
     # Check if the new state is valid
-    if newState not in [1, 2]:
+    if newState not in [1, 2, 3, 4, 5, 6, 7]:
         return {"message": "Invalid state"}
     # Check if the member has a delivery
     if members[user_id].delivery == None:
@@ -544,13 +573,7 @@ async def websocket_endpoint(websocket: WebSocket):
 
 # Main function
 if __name__ == "__main__":
-    # Create all tables
-    MemberSQL.metadata.create_all(bind=engine)
-    # Create a session
-    db = SessionLocal()
-    # Fetch all members from database and add to members dictionary
-    for mem in db.query(MemberSQL).all():
-        members_dict[mem.id] = member_body(id=mem.id, name=mem.name, email=mem.email, phone=mem.phone)
+    
 
 
     # Add three organizations

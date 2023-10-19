@@ -558,10 +558,14 @@ class Request {
 
   // A dictionary to get status name from status id
   static const statusDict = {
-    '0': 'Waiting',
-    '1': 'Delivering',
-    '2': 'Found',
-    '3': 'Cancelled',
+    0: 'Waiting',
+    1: 'Found',
+    2: 'Rejected',
+    3: 'Cancelled',
+    4: 'On the way',
+    5: 'Collected',
+    6: 'Delivering',
+    7: 'Delivered',
   };
 
   factory Request.fromJson(Map<String, dynamic> json) {
@@ -577,7 +581,7 @@ class Request {
       charityName: json['name'],
       category: categoryDict[json['category'].toString()]!['name']! as String,
       amount: json['amount'],
-      status: statusDict[json['status'].toString()]!,
+      status: statusDict[json['status']]!,
       time: formattedTime,
       icon: (categoryDict[json['category'].toString()]!['icon']! as Icon),
     );

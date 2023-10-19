@@ -97,6 +97,18 @@ class MemberAppState extends ChangeNotifier {
       }),
     );
   }
+
+  Future<http.Response> updateDelivetyState(int newState) async {
+    return http.put(
+      Uri.parse(Platform.isAndroid
+          ? 'http://10.0.2.2:8000/update_delivery/?newState=$newState'
+          : 'http://localhost:8000/update_delivery/?newState=$newState'),
+      headers: <String, String>{
+        'Content-Type': 'application/json; charset=UTF-8',
+        'Authorization': 'bearer $token',
+      },
+    );
+  }
 }
 
 class OrgNavigationBar extends StatefulWidget {
@@ -131,12 +143,9 @@ class _OrgNavigationBarState extends State<OrgNavigationBar> {
         ],
       ),
       body: <Widget>[
-        Container(
-          alignment: Alignment.center,
-          child: const RequestPage(),
-        ),
+        Container(alignment: Alignment.center, child: const RequestPage()),
         Container(alignment: Alignment.center, child: const ProfilePage()),
-      ][currentPageIndex],
+      ][currentPageIndex >= 0 && currentPageIndex < 2 ? currentPageIndex : 0],
     );
   }
 }
@@ -151,6 +160,7 @@ class RequestPage extends StatefulWidget {
 
 class _RequestPageState extends State<RequestPage> {
   var toggle = false;
+  var deliveryState = 'Collected';
 
   void initToggle() async {
     var appState = context.read<MemberAppState>();
@@ -160,6 +170,32 @@ class _RequestPageState extends State<RequestPage> {
       toggle = jsonData['status'];
     }
   }
+
+  // A dictionary to convert status name to status id
+  static const statusDict = {
+    'Waiting': 0,
+    'Found': 1,
+    'Rejected': 2,
+    'Cancelled': 3,
+    'On the way': 4,
+    'Collected': 5,
+    'Delivering': 6,
+    'Delivered': 7,
+  };
+
+  // A dictionary to convert status id to status name
+  static const statusDictReverse = {
+    0: 'Waiting',
+    1: 'Found',
+    2: 'Rejected',
+    3: 'Cancelled',
+    4: 'On the way',
+    5: 'Collected',
+    6: 'Delivering',
+    7: 'Delivered',
+  };
+
+  // Function to change delivery status in the server
 
   @override
   Widget build(BuildContext context) {
@@ -217,9 +253,15 @@ class _RequestPageState extends State<RequestPage> {
                   fontWeight: FontWeight.bold,
                 ),
               ),
-              const Text(
-                'Collected',
-                style: TextStyle(
+              Text(
+                // if appState.deliveries[0].status is null, show 'Waiting'
+                // else show the status name
+                appState.deliveries.isEmpty
+                    ? 'Waiting'
+                    : statusDictReverse[appState.deliveries[0].status]
+                        .toString(),
+
+                style: const TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
                   color: Colors.green,
@@ -234,10 +276,12 @@ class _RequestPageState extends State<RequestPage> {
                       showDialog(
                         context: context,
                         builder: (context) => DeliveryOptionsDialog(),
-                      ).then((value) {
-                        if (value != null) {
+                      ).then((delState) {
+                        if (delState != null) {
                           setState(() {
                             // Change the status
+                            appState.updateDelivetyState(
+                                statusDict[delState.toString()]!);
                           });
                         }
                       });
@@ -409,6 +453,7 @@ class Delivery {
   final int amount;
   final String donorAddress;
   final String communityAddress;
+  final int status;
   final Icon icon;
 
   Delivery({
@@ -418,6 +463,7 @@ class Delivery {
     required this.amount,
     required this.donorAddress,
     required this.communityAddress,
+    required this.status,
     required this.icon,
   });
 
@@ -453,6 +499,7 @@ class Delivery {
       amount: json['amount'],
       donorAddress: json['donorAddress'],
       communityAddress: json['communityAddress'],
+      status: json['status'],
       icon: (categoryDict[json['category'].toString()]!['icon']! as Icon),
     );
   }

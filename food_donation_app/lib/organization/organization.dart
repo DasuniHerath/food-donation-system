@@ -205,6 +205,7 @@ class _OrgNavigationBarState extends State<OrgNavigationBar> {
             icon: Icon(Icons.fastfood),
             label: 'Request',
           ),
+          NavigationDestination(icon: Icon(Icons.favorite), label: 'Donate'),
           NavigationDestination(
             icon: Icon(Icons.history),
             label: 'History',
@@ -219,6 +220,10 @@ class _OrgNavigationBarState extends State<OrgNavigationBar> {
         Container(
           alignment: Alignment.center,
           child: const RequestPage(),
+        ),
+        Container(
+          alignment: Alignment.center,
+          child: const Text('Donate'),
         ),
         Container(alignment: Alignment.center, child: const HistoryPage()),
         Container(
@@ -587,7 +592,7 @@ class RequestBottomSheet extends StatelessWidget {
     // var appState = context.watch<OrganizationAppState>();
 
     return SizedBox(
-      height: 200,
+      height: 250,
       child: Padding(
         padding: const EdgeInsets.all(10.0),
         child: Column(
@@ -621,10 +626,56 @@ class RequestBottomSheet extends StatelessWidget {
                 ),
               ],
             ),
-            // button
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Amount: ${request.id}',
+                    style: const TextStyle(fontSize: 14),
+                  ),
+                ),
+                Text(
+                  request.time,
+                  textAlign: TextAlign.right,
+                  style: const TextStyle(fontSize: 14),
+                ),
+              ],
+            ),
             const SizedBox(height: 16),
             Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                ElevatedButton.icon(
+                  onPressed: () {
+                    // open chat with restaurant
+                  },
+                  label:
+                      const Text('Donor', style: TextStyle(color: Colors.blue)),
+                  icon: const Icon(
+                    Icons.chat,
+                    color: Colors.blue,
+                  ),
+                ),
+                ElevatedButton.icon(
+                  onPressed: () {
+                    // open chat with restaurant
+                  },
+                  label: const Text(
+                    'Member',
+                    style: TextStyle(color: Colors.green),
+                  ),
+                  icon: const Icon(
+                    Icons.chat,
+                    color: Colors.green,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            Row(
               mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 ElevatedButton(
                   onPressed: () {
@@ -809,10 +860,14 @@ class Request {
 
   // A dictionary to get status name from status id
   static const statusDict = {
-    '0': 'Waiting',
-    '1': 'Delivering',
-    '2': 'Found',
-    '3': 'Cancelled',
+    0: 'Waiting',
+    1: 'Found',
+    2: 'Rejected',
+    3: 'Cancelled',
+    4: 'On the way',
+    5: 'Collected',
+    6: 'Delivering',
+    7: 'Delivered',
   };
 
   // Function to convert JSON data to Request object
@@ -828,7 +883,7 @@ class Request {
       restaurantName: json['name'],
       date: formattedDate,
       category: categoryDict[json['category'].toString()]!['name']! as String,
-      status: statusDict[json['status'].toString()]!,
+      status: statusDict[json['status']]!,
       time: formattedTime,
       icon: (categoryDict[json['category'].toString()]!['icon']! as Icon),
     );
@@ -881,6 +936,12 @@ class _NewRequestState extends State<NewRequest> {
 
   String dropdownValue = 'Rice';
 
+  Map<String, Icon> categoryDict = {
+    'Rice': const Icon(Icons.rice_bowl, color: Colors.green),
+    'Bread': const Icon(Icons.breakfast_dining, color: Colors.brown),
+    'Fast Food': const Icon(Icons.fastfood, color: Colors.orange),
+  };
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -891,35 +952,46 @@ class _NewRequestState extends State<NewRequest> {
         child: Column(
           // Create a form
           children: <Widget>[
-            SizedBox(
-                width: 500,
-                child: DropdownButton<String>(
-                  value: dropdownValue,
-                  onChanged: (String? newValue) {
-                    setState(() {
-                      dropdownValue = newValue!;
-                    });
-                  },
-                  items: <String>['Rice', 'Bread', 'Fast Food']
-                      .map<DropdownMenuItem<String>>((String value) {
-                    return DropdownMenuItem<String>(
-                      value: value,
-                      child: Row(
-                        children: [
-                          const Icon(Icons
-                              .star), // Replace this with the desired icon for each value
-                          const SizedBox(width: 8),
-                          Text(value),
-                        ],
-                      ),
-                    );
-                  }).toList(),
-                )),
-            TextField(
-              controller: amountController,
-              decoration: const InputDecoration(
-                border: OutlineInputBorder(),
-                labelText: 'Amount',
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: SizedBox(
+                  width: 500,
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      value: dropdownValue,
+                      onChanged: (String? newValue) {
+                        setState(() {
+                          dropdownValue = newValue!;
+                        });
+                      },
+                      items: <String>['Rice', 'Bread', 'Fast Food']
+                          .map<DropdownMenuItem<String>>((String value) {
+                        return DropdownMenuItem<String>(
+                          value: value,
+                          child: Row(
+                            children: [
+                              Padding(
+                                padding: const EdgeInsets.all(8.0),
+                                child: categoryDict[value],
+                              ), // Replace this with the desired icon for each value
+                              const SizedBox(width: 8),
+                              Text(value),
+                            ],
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  )),
+            ),
+            const SizedBox(height: 8),
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: TextField(
+                controller: amountController,
+                decoration: const InputDecoration(
+                  border: OutlineInputBorder(),
+                  labelText: 'Amount',
+                ),
               ),
             ),
             ElevatedButton(

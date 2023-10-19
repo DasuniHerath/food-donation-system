@@ -14,6 +14,14 @@ class MemberSQL(Base):
     email = Column(String, unique=True, index=True)
     phone = Column(String, index=True)
 
+class OrganizationSQL(Base):
+    __tablename__ = "organizations"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, index=True)
+    City = Column(String, index=True)
+    Address = Column(String, index=True)
+
 # Request should have a body with the following fields
         # A unique id for each request
         # A string to indicate the name of donor (by default it is anonymous)
