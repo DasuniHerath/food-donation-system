@@ -37,6 +37,8 @@ class request_body(BaseModel):
     time: datetime = datetime.now()
     status: int = 0
     member: int = 0
+    comAddress: str
+
 
     # Convert datetime to string in ISO 8601 format
     def dict(self):
@@ -72,6 +74,7 @@ class member_body(BaseModel):
 class request_item(BaseModel):
     category: int
     amount: int
+    comAddress: str
 
 class delivery_item(BaseModel):
     id: int

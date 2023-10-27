@@ -1,12 +1,11 @@
 from fastapi import FastAPI, Query, WebSocket, Depends,  HTTPException, BackgroundTasks
 from fastapi.security import OAuth2PasswordBearer
 from datetime import datetime
-from models import request_body, member_body, delivery_body, request_item, delivery_item, conversions, flagsDon, flagsOrg, flagsMem, reason, MemberSQL, OrganizationSQL
+from models import request_body, member_body, delivery_body, request_item, delivery_item, conversions, flagsDon, flagsOrg, flagsMem, reason, MemberSQL, OrganizationSQL 
 from users import organization, donor, member
 import uvicorn
 from sqlalchemy.orm import Session
 from database import SessionLocal, engine
-
 # Category limit
 CATEGORY_LIMIT = 3
 
@@ -24,6 +23,7 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 members_dict = {}
 
 # A dictionary containing tokens key is organization id 
+#TODO : Use databases either only or for loading data to this dictionaries
 orgUsers = {
     1: "token1",
     2: "token2",
@@ -40,6 +40,7 @@ memUsers = {
     3: "member3"
 }
 
+# TODO:Implement organization similar to others
 organizations = []
 donors = {}
 members = {}
@@ -62,7 +63,7 @@ def find_donors(orgId: int, request: request_body):
         next_id = get_next_id_don(donor.id)
         # Fetch organization name from db
         tmp_org = db.query(OrganizationSQL).filter(OrganizationSQL.id == orgId).first()
-        request = request_body(id=next_id, name= tmp_org.name, category=request.category, amount=request.amount, time=request.time)
+        request = request_body(id=next_id, name= tmp_org.name, category=request.category, amount=request.amount, time=request.time, comAddress=request.comAddress)
         donor.requests.append(request)
         # add the request to the donor_org_requests dictionary
         # if the donor is not in the dictionary add it
@@ -136,6 +137,11 @@ def get_current_memUser(token: str = Depends(oauth2_scheme)):
         raise HTTPException(status_code=401, detail="Invalid authentication credentials")
     return user
 
+# Find wheather not found requests are on the orgaization requests list
+def find_not_found_requests(user_id: int):
+    for req in organizations[user_id].requests:
+        if req.status == 0:
+            return True
 
 @app.get("/")
 async def root():
@@ -147,6 +153,7 @@ async def root():
 async def add_organization(user_id: int = Depends(get_current_user)):
     if user_id in [o.id for o in organizations]:
         return {"message": "Organization already exists"}
+    # TODO: Load histoy from the database
     organizations.append(organization(id=user_id, requests=[], history=[], members=[]))
     # Creat a Flags object for the new organization and add it to dictionary with its user_id as a key
     orgFlags[user_id] = flagsOrg()
@@ -155,6 +162,9 @@ async def add_organization(user_id: int = Depends(get_current_user)):
 # Post request to add a new request wich get category and amount as query parameters using request body
 @app.post("/add_request/")
 async def add_request(request_item: request_item, background_tasks: BackgroundTasks, user_id: int = Depends(get_current_user),):
+    # Check weather a member is in the organization
+    if len(get_organization_by_id(user_id).members) == 0:
+        return {"message": "No members"}
     # Check if the category is valid
     if request_item.category < 0 or request_item.category > CATEGORY_LIMIT:
         return {"message": "Invalid category"}
@@ -163,7 +173,12 @@ async def add_request(request_item: request_item, background_tasks: BackgroundTa
         return {"message": "Invalid amount"}
     
     # create a request object
-    newReq = request_body(id=get_next_id_org(user_id), category=request_item.category, amount=request_item.amount, time=datetime.now())
+    newReq = request_body(
+        id=get_next_id_org(user_id),
+        category=request_item.category, 
+        amount=request_item.amount, 
+        time=datetime.now(),
+        comAddress=request_item.comAddress)
 
     # Add the request to requests list
     get_organization_by_id(user_id).requests.append(newReq)
@@ -305,7 +320,12 @@ async def remove_member(memberid: int, user_id: int = Depends(get_current_user))
     if memberid not in members_dict:
         return {"message": "Invalid memberid"}
     # Remove the memberid from members list
-    get_organization_by_id(user_id).members.remove(members_dict[memberid])
+    temp_org = get_organization_by_id(user_id)
+    if members[memberid].delivery != None:
+        return {"message": "A delivery is assigned to the member"}
+    if find_not_found_requests(user_id) and len(temp_org.members) == 1:
+        return {"message": "Not found requests are in the list"}
+    temp_org.members.remove(members_dict[memberid])
     # Set the flag up
     orgFlags[user_id].members_update.set()
     # Return the all history
@@ -407,7 +427,7 @@ async def change_status(id: int, user_id: int = Depends(get_current_donUser)):
                 amount=donors[user_id].requests[find_the_index_donor(user_id, id)].amount, 
                 time=datetime.now(), 
                 donorAddress=tmp_donor.Address, 
-                communityAddress="communityAddress"
+                communityAddress=donors[user_id].requests[find_the_index_donor(user_id, id)].comAddress, 
             )
             # Update member in request_body for both organization and donor
             get_organization_by_id(org_id).requests[find_the_index(org_id, req_id)].member = member.id

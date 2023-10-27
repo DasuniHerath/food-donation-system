@@ -26,6 +26,8 @@ class DonorAppState extends ChangeNotifier {
   var history = <Request>[];
   var requests = <Request>[];
 
+  final List<String> items = List<String>.generate(100, (i) => "Item $i");
+
   final wsUrlDonRequests = Uri.parse(Platform.isAndroid
       ? 'ws://10.0.2.2:8000/donorrequests'
       : 'ws://localhost:8000/donorrequests');
@@ -135,41 +137,9 @@ class _OrgNavigationBarState extends State<OrgNavigationBar> {
           alignment: Alignment.center,
           child: const RequestPage(),
         ),
-        Container(alignment: Alignment.center, child: const DonatePage()),
+        const DonationPage(),
         Container(alignment: Alignment.center, child: const HistoryPage()),
       ][currentPageIndex],
-    );
-  }
-}
-
-class DonatePage extends StatelessWidget {
-  const DonatePage({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    var appState = context.watch<DonorAppState>();
-    appState.connectDonRequests();
-
-    return Column(
-      children: [
-        Expanded(
-          child: ListView(
-            children: const [
-              // A TEXT
-              Padding(
-                padding: EdgeInsets.all(16.0),
-                child: Text(
-                  'Donate to a charity',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 18,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
     );
   }
 }
@@ -584,6 +554,120 @@ class Request {
       status: statusDict[json['status']]!,
       time: formattedTime,
       icon: (categoryDict[json['category'].toString()]!['icon']! as Icon),
+    );
+  }
+}
+
+class DonationPage extends StatelessWidget {
+  const DonationPage({super.key});
+  @override
+  Widget build(BuildContext context) {
+    var appState = context.watch<DonorAppState>();
+    return Column(
+      children: [
+        const Padding(
+          padding: EdgeInsets.all(8.0),
+          child: Text(
+            'Listed Donations',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 24,
+            ),
+          ),
+        ),
+        Expanded(
+          child: ListView(
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8.0),
+                child: DonationTile(
+                  donation: Donation(
+                      foodName: "Rice and Curry",
+                      category: "Rice",
+                      amount: 10,
+                      time: DateTime.now().hour.toString()),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class Donation {
+  final String foodName;
+  final String category;
+  final int amount;
+  final String time;
+
+  Donation({
+    required this.foodName,
+    required this.category,
+    required this.amount,
+    required this.time,
+  });
+}
+
+class DonationTile extends StatelessWidget {
+  const DonationTile({
+    super.key,
+    required this.donation,
+  });
+
+  final Donation donation;
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: () {
+        print('tapped');
+      },
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.start,
+              children: [
+                Text(
+                  donation.foodName,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  donation.category,
+                  style: const TextStyle(fontSize: 14),
+                ),
+                Text(
+                  donation.amount.toString(),
+                  style: const TextStyle(fontSize: 14),
+                ),
+              ],
+            ),
+          ),
+          Expanded(child: Container()),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              // An internet image
+              Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: Image.network(
+                  'https://live.staticflickr.com/2665/4006883441_9d154ccbf7_b.jpg',
+                  width: 150,
+                  height: 150,
+                ),
+              ),
+            ],
+          )
+        ],
+      ),
     );
   }
 }

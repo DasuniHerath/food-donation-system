@@ -113,18 +113,19 @@ class OrganizationAppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  void addRequest(String category, int amount) {
+  void addRequest(String category, int amount, String comAddress) {
     // Dictionary to convert category name to category id
     var categoryDict = {
       'Rice': 1,
       'Bread': 2,
       'Fast Food': 3,
     };
-    addRequestToServer(categoryDict[category]!, amount);
+    addRequestToServer(categoryDict[category]!, amount, comAddress);
     notifyListeners();
   }
 
-  Future<http.Response> addRequestToServer(int category, int amount) {
+  Future<http.Response> addRequestToServer(
+      int category, int amount, String comAddress) {
     return http.post(
         Uri.parse(Platform.isAndroid
             ? 'http://10.0.2.2:8000/add_request/'
@@ -138,6 +139,7 @@ class OrganizationAppState extends ChangeNotifier {
         body: jsonEncode(<String, dynamic>{
           'category': category,
           'amount': amount,
+          'comAddress': comAddress,
         }));
   }
 
@@ -933,8 +935,11 @@ class NewRequest extends StatefulWidget {
 class _NewRequestState extends State<NewRequest> {
   // Create text field controllers
   TextEditingController amountController = TextEditingController();
+  TextEditingController comAddressController = TextEditingController();
 
   String dropdownValue = 'Rice';
+
+  bool isCheckBoxSelected = false;
 
   Map<String, Icon> categoryDict = {
     'Rice': const Icon(Icons.rice_bowl, color: Colors.green),
@@ -994,11 +999,48 @@ class _NewRequestState extends State<NewRequest> {
                 ),
               ),
             ),
+            const SizedBox(height: 8),
+            // A tick box to select if the order is directly to the community
+            Row(
+              children: [
+                Checkbox(
+                  value: isCheckBoxSelected,
+                  onChanged: (bool? value) {
+                    setState(() {
+                      isCheckBoxSelected = value!;
+                    });
+                  },
+                ),
+                const Text('Order directly to the community'),
+              ],
+            ),
+            Visibility(
+                visible: isCheckBoxSelected,
+                child: const SizedBox(
+                  height: 8,
+                )),
+            Visibility(
+              visible: isCheckBoxSelected,
+              child: Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: TextField(
+                  controller: comAddressController,
+                  decoration: const InputDecoration(
+                    labelText: 'Community Address',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
             ElevatedButton(
               onPressed: () {
                 // Add request
                 widget.appState.addRequest(
-                    dropdownValue, int.parse(amountController.text));
+                    dropdownValue,
+                    int.parse(amountController.text),
+                    isCheckBoxSelected ? comAddressController.text : 'default');
+
                 Navigator.pop(context);
               },
               child: const Text('Submit'),
