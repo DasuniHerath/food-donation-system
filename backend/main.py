@@ -1,14 +1,15 @@
+import time
 from fastapi import FastAPI, Query, WebSocket, Depends,  HTTPException, BackgroundTasks
 from fastapi.security import OAuth2PasswordBearer
 from datetime import datetime
-from models import request_body, member_body, delivery_body, request_item, delivery_item, conversions, flagsDon, flagsOrg, flagsMem, reason, MemberSQL, OrganizationSQL 
+from models import *
 from users import organization, donor, member
 import uvicorn
 from sqlalchemy.orm import Session
 from database import SessionLocal, engine
+
 # Category limit
 CATEGORY_LIMIT = 3
-
 
 # Create all tables
 MemberSQL.metadata.create_all(bind=engine)
@@ -74,6 +75,27 @@ def find_donors(orgId: int, request: request_body):
         print(donor_org_requests)
         donFlags[donor.id].requests_update.set()
 
+def finish_delivery(user_id: int):
+    # Update the status of the delivery in organization and donor
+    org_index = find_the_index(member_don_org_requests[user_id][0], member_don_org_requests[user_id][1])
+    don_index = find_the_index_donor(member_don_org_requests[user_id][2], member_don_org_requests[user_id][3])
+    get_organization_by_id(member_don_org_requests[user_id][0]).requests[org_index].status = 7
+    donors[member_don_org_requests[user_id][2]].requests[don_index].status = 7
+    orgFlags[member_don_org_requests[user_id][0]].requests_update.set()
+    donFlags[member_don_org_requests[user_id][2]].requests_update.set()
+
+    # wait for 10 seconds
+    time.sleep(10)
+
+    # Remove from requests
+    get_organization_by_id(member_don_org_requests[user_id][0]).requests.pop(org_index)
+    donors[member_don_org_requests[user_id][2]].requests.pop(don_index)
+    members[user_id].delivery = None
+    orgFlags[member_don_org_requests[user_id][0]].requests_update.set()
+    donFlags[member_don_org_requests[user_id][2]].requests_update.set()
+    memFlags[user_id].delivery_update.set()
+
+    # TODO: Remove from member_don_org_requests dictionary and member_don_org_requests dictionary
 
 def get_current_user(token: str = Depends(oauth2_scheme)):
     user = None
@@ -85,7 +107,7 @@ def get_current_user(token: str = Depends(oauth2_scheme)):
         raise HTTPException(status_code=401, detail="Invalid authentication credentials")
     return user
 
-def get_organization_by_id(org_id: int):
+def get_organization_by_id(org_id: int) -> organization: 
     for org in organizations:
         # print(org.id)
         if org.id == org_id:
@@ -139,9 +161,10 @@ def get_current_memUser(token: str = Depends(oauth2_scheme)):
 
 # Find wheather not found requests are on the orgaization requests list
 def find_not_found_requests(user_id: int):
-    for req in organizations[user_id].requests:
+    for req in get_organization_by_id(user_id).requests:
         if req.status == 0:
             return True
+    return False
 
 @app.get("/")
 async def root():
@@ -172,13 +195,18 @@ async def add_request(request_item: request_item, background_tasks: BackgroundTa
     if request_item.amount < 1:
         return {"message": "Invalid amount"}
     
+    # Get the correct delivery address
+    if request_item.comAddress == 'default':
+        org = db.query(OrganizationSQL).filter(OrganizationSQL.id == user_id).first()
+        request_item.comAddress = org.Address
+        
     # create a request object
     newReq = request_body(
         id=get_next_id_org(user_id),
         category=request_item.category, 
         amount=request_item.amount, 
         time=datetime.now(),
-        comAddress=request_item.comAddress)
+        comAddress= request_item.comAddress)
 
     # Add the request to requests list
     get_organization_by_id(user_id).requests.append(newReq)
@@ -298,6 +326,12 @@ async def add_member(memberid: int, user_id: int = Depends(get_current_user)):
     # if the member is not in db return error
     if tmp_member == None:
         return {"message": "Invalid memberid"}
+    # Check wheather the member is loaded
+    if memberid not in members:
+        return {"message": "Member is not loaded"}
+    # Check wheather the member is already in the members list
+    if memberid in [member.id for member in get_organization_by_id(user_id).members]:
+        return {"message": "Member already exists"}
     # convert the member to member_body
     member = member_body(id=tmp_member.id, name=tmp_member.name, email=tmp_member.email, phone=tmp_member.phone)
     # Add the memberid to members list
@@ -323,6 +357,8 @@ async def remove_member(memberid: int, user_id: int = Depends(get_current_user))
     temp_org = get_organization_by_id(user_id)
     if members[memberid].delivery != None:
         return {"message": "A delivery is assigned to the member"}
+    print(find_not_found_requests(user_id))
+    print(len(temp_org.members))
     if find_not_found_requests(user_id) and len(temp_org.members) == 1:
         return {"message": "Not found requests are in the list"}
     temp_org.members.remove(members_dict[memberid])
@@ -403,20 +439,26 @@ async def change_status(id: int, user_id: int = Depends(get_current_donUser)):
                     org_id = req[1]
                     req_id = req[2]
                     break
-        else:
-            for req in value:
-                if req[0] == id:
-                    # delete the request from the donor_org_requests dictionary
-                    donor_org_requests[key].remove(req)
+
     # Change the status of the request in the organization
     index = find_the_index(org_id, req_id)
     get_organization_by_id(org_id).requests[index].status = 2
     # fetch donor name from db
-    tmp_donor = db.query(OrganizationSQL).filter(OrganizationSQL.id == user_id).first()
+    tmp_donor = db.query(DonorSQL).filter(DonorSQL.id == user_id).first()
     get_organization_by_id(org_id).requests[index].name = tmp_donor.name
 
     # Set org flag up    
     orgFlags[org_id].requests_update.set()
+
+    for key, value in donor_org_requests.items():
+        if key != user_id:
+            for req in value:
+                if req[2] == req_id:
+                    # Remove from donor
+                    donors[key].requests.pop(find_the_index_donor(key, req[0]))
+                    donFlags[key].requests_update.set()
+                    donor_org_requests[key].remove(req)
+                    break           
 
     # Get an available member from the organization and assign the delivery to him
     for member in get_organization_by_id(org_id).members:
@@ -437,7 +479,7 @@ async def change_status(id: int, user_id: int = Depends(get_current_donUser)):
             donFlags[user_id].requests_update.set()
             memFlags[member.id].delivery_update.set()
             break
-    # If there is no available member
+    # TODO: If there is no available member
     
 
     # Add to member_don_org_requests dictionary
@@ -557,7 +599,7 @@ async def reject_delivery(reason: reason, user_id: int = Depends(get_current_mem
 
 # Update the status of a delivery
 @app.put("/update_delivery/")
-async def update_delivery(newState: int, user_id: int = Depends(get_current_memUser)):
+async def update_delivery(newState: int, background_tasks: BackgroundTasks, user_id: int = Depends(get_current_memUser)):
     # Check if the new state is valid
     if newState not in [1, 2, 3, 4, 5, 6, 7]:
         return {"message": "Invalid state"}
@@ -568,13 +610,7 @@ async def update_delivery(newState: int, user_id: int = Depends(get_current_memU
     members[user_id].delivery.status = newState
     # Set the flag up
     memFlags[user_id].delivery_update.set()
-    # Update the status of the delivery in organization and donor
-    org_index = find_the_index(member_don_org_requests[user_id][0], member_don_org_requests[user_id][1])
-    don_index = find_the_index_donor(member_don_org_requests[user_id][2], member_don_org_requests[user_id][3])
-    get_organization_by_id(member_don_org_requests[user_id][0]).requests[org_index].status = newState
-    donors[member_don_org_requests[user_id][2]].requests[don_index].status = newState
-    orgFlags[member_don_org_requests[user_id][0]].requests_update.set()
-    donFlags[member_don_org_requests[user_id][2]].requests_update.set()
+    background_tasks.add_task(finish_delivery, user_id)
     return {"message": "Delivery updated successfully"}
 
 @app.websocket("/memberdelivery")
@@ -589,35 +625,4 @@ async def websocket_endpoint(websocket: WebSocket):
         memFlags[user_id].delivery_update.clear()
     await websocket.close()
 
-
-
-# Main function
-if __name__ == "__main__":
-    
-
-
-    # Add three organizations
-    organizations.append(organization(id=1, requests=[], history=[], members=[]))
-    organizations.append(organization(id=2, requests=[], history=[], members=[]))
-    organizations.append(organization(id=3, requests=[], history=[], members=[]))
-    orgFlags[1] = flagsOrg()
-    orgFlags[2] = flagsOrg()
-    orgFlags[3] = flagsOrg()
-
-    # Add three donors
-    donors[1] = donor(id=1, requests=[], history=[])
-    donors[2] = donor(id=2, requests=[], history=[])
-    donors[3] = donor(id=3, requests=[], history=[])
-    donFlags[1] = flagsDon()
-    donFlags[2] = flagsDon()
-    donFlags[3] = flagsDon()
-
-    # Add two members
-    members[1] = member(id=1, status=True, delivery=None)
-    members[2] = member(id=2, status=False, delivery=None)
-    memFlags[1] = flagsMem()
-    memFlags[2] = flagsMem()
-
-    # start the server
-    uvicorn.run(app)
     
