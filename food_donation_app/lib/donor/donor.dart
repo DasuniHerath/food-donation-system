@@ -29,11 +29,11 @@ class DonorAppState extends ChangeNotifier {
   final List<String> items = List<String>.generate(100, (i) => "Item $i");
 
   final wsUrlDonRequests = Uri.parse(Platform.isAndroid
-      ? 'ws://10.0.2.2:8000/donorrequests'
-      : 'ws://localhost:8000/donorrequests');
+      ? 'ws://207.148.117.189/donorrequests'
+      : 'ws://207.148.117.189/donorrequests');
   final wsUrlDonHistory = Uri.parse(Platform.isAndroid
-      ? 'ws://10.0.2.2:8000/donorhistory'
-      : 'ws://localhost:8000/donorhistory');
+      ? 'ws://207.148.117.189/donorhistory'
+      : 'ws://207.148.117.189/donorhistory');
 
   late IOWebSocketChannel channelDonRequests;
   late IOWebSocketChannel channelDonHistory;
@@ -78,8 +78,8 @@ class DonorAppState extends ChangeNotifier {
   Future<http.Response> acceptDonRequest(int id) async {
     return http.put(
       Uri.parse(Platform.isAndroid
-          ? 'http://10.0.2.2:8000/accept_donation/?id=$id'
-          : 'http://localhost:8000/accept_donation/?id=$id'),
+          ? 'http://207.148.117.189/accept_donation/?id=$id'
+          : 'http://207.148.117.189/accept_donation/?id=$id'),
       headers: <String, String>{
         'Content-Type': 'application/json; charset=UTF-8',
         'Authorization': 'bearer $token',
@@ -90,8 +90,8 @@ class DonorAppState extends ChangeNotifier {
   Future<http.Response> rejectDonRequest(int id) async {
     return http.delete(
       Uri.parse(Platform.isAndroid
-          ? 'http://10.0.2.2:8000/reject_donation/?id=$id'
-          : 'http://localhost:8000/reject_donation/?id=$id'),
+          ? 'http://207.148.117.189/reject_donation/?id=$id'
+          : 'http://207.148.117.189/reject_donation/?id=$id'),
       headers: <String, String>{
         'Content-Type': 'application/json; charset=UTF-8',
         'Authorization': 'bearer $token',

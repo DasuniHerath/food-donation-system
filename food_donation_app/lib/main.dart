@@ -74,8 +74,8 @@ class _LoginPageState extends State<LoginPage> {
   Future<http.Response> addOrgToServer(String token) async {
     return http.post(
       Uri.parse(Platform.isAndroid
-          ? 'http://10.0.2.2:8000/add_organization/'
-          : 'http://localhost:8000/add_organization/'),
+          ? 'http://207.148.117.189/add_organization/'
+          : 'http://207.148.117.189/add_organization/'),
       headers: <String, String>{
         'Content-Type': 'application/json; charset=UTF-8',
         'Authorization': 'Bearer $token',
@@ -86,8 +86,8 @@ class _LoginPageState extends State<LoginPage> {
   Future<http.Response> addDonToServer(String token) async {
     return http.post(
       Uri.parse(Platform.isAndroid
-          ? 'http://10.0.2.2:8000/add_donor/'
-          : 'http://localhost:8000/add_donor/'),
+          ? 'http://207.148.117.189/add_donor/'
+          : 'http://207.148.117.189/add_donor/'),
       headers: <String, String>{
         'Content-Type': 'application/json; charset=UTF-8',
         'Authorization': 'Bearer $token',
@@ -98,8 +98,8 @@ class _LoginPageState extends State<LoginPage> {
   Future<http.Response> addMemToServer(String token) async {
     return http.post(
       Uri.parse(Platform.isAndroid
-          ? 'http://10.0.2.2:8000/load_member/'
-          : 'http://localhost:8000/load_member/'),
+          ? 'http://207.148.117.189/load_member/'
+          : 'http://207.148.117.189/load_member/'),
       headers: <String, String>{
         'Content-Type': 'application/json; charset=UTF-8',
         'Authorization': 'Bearer $token',

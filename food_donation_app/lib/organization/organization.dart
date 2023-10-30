@@ -29,14 +29,14 @@ class OrganizationAppState extends ChangeNotifier {
   final String token;
 
   final wsUrlOrgHistory = Uri.parse(Platform.isAndroid
-      ? 'ws://10.0.2.2:8000/orghistory'
-      : 'ws://localhost:8000/orghistory');
+      ? 'ws://207.148.117.189/orghistory'
+      : 'ws://207.148.117.189/orghistory');
   final wsUrlOrgRequests = Uri.parse(Platform.isAndroid
-      ? 'ws://10.0.2.2:8000/orgrequests'
-      : 'ws://localhost:8000/orgrequests');
+      ? 'ws://207.148.117.189/orgrequests'
+      : 'ws://207.148.117.189/orgrequests');
   final wsUrlOrgMembers = Uri.parse(Platform.isAndroid
-      ? 'ws://10.0.2.2:8000/orgMembers'
-      : 'ws://localhost:8000/orgMembers');
+      ? 'ws://207.148.117.189/orgMembers'
+      : 'ws://207.148.117.189/orgMembers');
   bool isOrgHistoryConnected = false;
   bool isOrgRequestsConnected = false;
   bool isOrgMembersConnected = false;
@@ -128,8 +128,8 @@ class OrganizationAppState extends ChangeNotifier {
       int category, int amount, String comAddress) {
     return http.post(
         Uri.parse(Platform.isAndroid
-            ? 'http://10.0.2.2:8000/add_request/'
-            : 'http://localhost:8000/add_request/'),
+            ? 'http://207.148.117.189/add_request/'
+            : 'http://207.148.117.189/add_request/'),
         headers: <String, String>{
           'Content-Type': 'application/json; charset=UTF-8',
           'Authorization': 'Bearer $token',
@@ -146,8 +146,8 @@ class OrganizationAppState extends ChangeNotifier {
   Future<http.Response> cancelRequest(int id) async {
     final http.Response response = await http.delete(
       Uri.parse(Platform.isAndroid
-          ? 'http://10.0.2.2:8000/delete_request/?id=$id'
-          : 'http://localhost:8000/delete_request/?id=$id'),
+          ? 'http://207.148.117.189/delete_request/?id=$id'
+          : 'http://207.148.117.189/delete_request/?id=$id'),
       headers: <String, String>{
         'Content-Type': 'application/json; charset=UTF-8',
         'Authorization': 'Bearer $token',
@@ -159,8 +159,8 @@ class OrganizationAppState extends ChangeNotifier {
   Future<http.Response> addMember(int id) {
     return http.post(
       Uri.parse(Platform.isAndroid
-          ? 'http://10.0.2.2:8000/add_member/?memberid=$id'
-          : 'http://localhost:8000/add_member/?memberid=$id'),
+          ? 'http://207.148.117.189/add_member/?memberid=$id'
+          : 'http://207.148.117.189/add_member/?memberid=$id'),
       headers: <String, String>{
         'Content-Type': 'application/json; charset=UTF-8',
         'Authorization': 'Bearer $token',
@@ -171,8 +171,8 @@ class OrganizationAppState extends ChangeNotifier {
   Future<http.Response> fireMember(int id) async {
     final http.Response response = await http.delete(
       Uri.parse(Platform.isAndroid
-          ? 'http://10.0.2.2:8000/remove_member/?memberid=$id'
-          : 'http://localhost:8000/remove_member/?memberid=$id'),
+          ? 'http://207.148.117.189/remove_member/?memberid=$id'
+          : 'http://207.148.117.189/remove_member/?memberid=$id'),
       headers: <String, String>{
         'Content-Type': 'application/json; charset=UTF-8',
         'Authorization': 'Bearer $token',

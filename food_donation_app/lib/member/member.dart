@@ -32,8 +32,8 @@ class MemberAppState extends ChangeNotifier {
   var deliveries = <Delivery>[];
 
   final wsUrlDelivery = Uri.parse(Platform.isAndroid
-      ? 'ws://10.0.2.2:8000/memberdelivery'
-      : 'ws://localhost:8000/memberdelivery');
+      ? 'ws://207.148.117.189/memberdelivery'
+      : 'ws://207.148.117.189/memberdelivery');
 
   late IOWebSocketChannel wsDeliveryChannel;
 
@@ -62,8 +62,8 @@ class MemberAppState extends ChangeNotifier {
   Future<http.Response> setStatusActive(bool status) async {
     return http.put(
       Uri.parse(Platform.isAndroid
-          ? 'http://10.0.2.2:8000/change_status/?status=$status'
-          : 'http://localhost:8000/change_status/?status=$status'),
+          ? 'http://207.148.117.189/change_status/?status=$status'
+          : 'http://207.148.117.189/change_status/?status=$status'),
       headers: <String, String>{
         'Content-Type': 'application/json; charset=UTF-8',
         'Authorization': 'bearer $token',
@@ -74,8 +74,8 @@ class MemberAppState extends ChangeNotifier {
   Future<http.Response> getStatus() async {
     return await http.get(
       Uri.parse(Platform.isAndroid
-          ? 'http://10.0.2.2:8000/get_status/'
-          : 'http://localhost:8000/get_status/'),
+          ? 'http://207.148.117.189/get_status/'
+          : 'http://207.148.117.189/get_status/'),
       headers: <String, String>{
         'Content-Type': 'application/json; charset=UTF-8',
         'Authorization': 'bearer $token',
@@ -86,8 +86,8 @@ class MemberAppState extends ChangeNotifier {
   Future<http.Response> rejectDelivery(String reason) async {
     return http.delete(
       Uri.parse(Platform.isAndroid
-          ? 'http://10.0.2.2:8000/reject_delivery/'
-          : 'http://localhost:8000/reject_delivery/'),
+          ? 'http://207.148.117.189/reject_delivery/'
+          : 'http://207.148.117.189/reject_delivery/'),
       headers: <String, String>{
         'Content-Type': 'application/json; charset=UTF-8',
         'Authorization': 'bearer $token',
@@ -101,8 +101,8 @@ class MemberAppState extends ChangeNotifier {
   Future<http.Response> updateDelivetyState(int newState) async {
     return http.put(
       Uri.parse(Platform.isAndroid
-          ? 'http://10.0.2.2:8000/update_delivery/?newState=$newState'
-          : 'http://localhost:8000/update_delivery/?newState=$newState'),
+          ? 'http://207.148.117.189/update_delivery/?newState=$newState'
+          : 'http://207.148.117.189/update_delivery/?newState=$newState'),
       headers: <String, String>{
         'Content-Type': 'application/json; charset=UTF-8',
         'Authorization': 'bearer $token',
