@@ -3,6 +3,9 @@ import 'package:provider/provider.dart';
 import 'package:web_socket_channel/io.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'dart:io';
+import 'package:image_picker/image_picker.dart';
+import 'package:intl/intl.dart';
 
 class DonorApp extends StatelessWidget {
   const DonorApp({super.key, required this.token, required this.hosturl});
@@ -110,6 +113,11 @@ class DonorAppState extends ChangeNotifier {
         'Authorization': 'bearer $token',
       },
     );
+  }
+
+  void listDonation(Donation donation) {
+    donations.add(donation);
+    notifyListeners();
   }
 }
 
@@ -576,49 +584,298 @@ class DonationPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     var appState = context.watch<DonorAppState>();
-    return Column(
-      children: [
-        const Padding(
-          padding: EdgeInsets.all(8.0),
-          child: Text(
-            'Listed Donations',
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 24,
+    return SafeArea(
+      child: Column(
+        children: [
+          const Padding(
+            padding: EdgeInsets.all(8.0),
+            child: Text(
+              'Listed Donations',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 24,
+              ),
             ),
           ),
-        ),
-        Expanded(
-          child: ListView(
-            children: [
-              for (var donation in appState.donations)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 8.0),
-                  child: DonationTile(
-                    donation: donation,
+          Expanded(
+            child: ListView(
+              children: [
+                for (var donation in appState.donations)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8.0),
+                    child: DonationTile(
+                      donation: donation,
+                    ),
                   ),
+              ],
+            ),
+          ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(20.0),
+                child: FloatingActionButton.extended(
+                  onPressed: () {
+                    // Navigate to donation form page
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => DonationForm(
+                          appState: appState,
+                        ),
+                      ),
+                    );
+                  },
+                  label: const Text("Add"),
+                  icon: const Icon(Icons.favorite),
                 ),
+              ),
             ],
           ),
+        ],
+      ),
+    );
+  }
+}
+
+class DonationForm extends StatefulWidget {
+  const DonationForm({super.key, required this.appState});
+  final DonorAppState appState;
+  @override
+  // ignore: library_private_types_in_public_api
+  _DonationFormState createState() => _DonationFormState();
+}
+
+class _DonationFormState extends State<DonationForm> {
+  File? _foodImage;
+
+  TextEditingController foodNameController = TextEditingController();
+  TextEditingController amountController = TextEditingController();
+
+  // A variable to store the expiry date and time
+  String _expiryController = '00/00/0000 00:00 AM';
+
+  String dropdownValue = 'Rice';
+
+  Map<String, Icon> categoryDict = {
+    'Rice': const Icon(Icons.rice_bowl, color: Colors.green),
+    'Bread': const Icon(Icons.breakfast_dining, color: Colors.brown),
+    'Fast Food': const Icon(Icons.fastfood, color: Colors.orange),
+  };
+
+  Future<void> _pickImage() async {
+    final imagePicker = ImagePicker();
+    final pickedImage = await imagePicker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 80,
+      maxWidth: 800,
+    );
+
+    if (pickedImage != null) {
+      // Check the file extension to ensure it's a .jpg image
+      if (pickedImage.path.endsWith('.webp') ||
+          pickedImage.path.endsWith('.jpg')) {
+        setState(() {
+          _foodImage = File(pickedImage.path);
+          debugPrint('Image Path: ${_foodImage?.path}');
+        });
+      } else {
+        // Display an error message or handle non-.jpg images as needed
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      resizeToAvoidBottomInset: false,
+      appBar: AppBar(
+        title: const Text('Donation Form'),
+      ),
+      body: SafeArea(
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: TextField(
+                controller: foodNameController,
+                decoration: const InputDecoration(
+                  border: OutlineInputBorder(),
+                  labelText: 'Food Name',
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: TextField(
+                controller: amountController,
+                decoration: const InputDecoration(
+                  border: OutlineInputBorder(),
+                  labelText: 'Amount',
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            // Select category
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: SizedBox(
+                  width: 500,
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      value: dropdownValue,
+                      onChanged: (String? newValue) {
+                        setState(() {
+                          dropdownValue = newValue!;
+                        });
+                      },
+                      items: <String>['Rice', 'Bread', 'Fast Food']
+                          .map<DropdownMenuItem<String>>((String value) {
+                        return DropdownMenuItem<String>(
+                          value: value,
+                          child: Row(
+                            children: [
+                              Padding(
+                                padding: const EdgeInsets.all(8.0),
+                                child: categoryDict[value],
+                              ), // Replace this with the desired icon for each value
+                              const SizedBox(width: 8),
+                              Text(value),
+                            ],
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  )),
+            ),
+            // Select expiry date and time
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                // Textbox to display the expiry date and time
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: TextField(
+                      controller:
+                          TextEditingController(text: _expiryController),
+                      decoration: const InputDecoration(
+                        border: OutlineInputBorder(),
+                        labelText: 'Expiry Date and Time',
+                      ),
+                    ),
+                  ),
+                ),
+
+                Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: ElevatedButton(
+                    onPressed: () {
+                      // Show date picker
+                      showDatePicker(
+                        context: context,
+                        initialDate: DateTime.now(),
+                        firstDate: DateTime.now(),
+                        lastDate: DateTime.now().add(const Duration(days: 14)),
+                      ).then((selectedDate) {
+                        if (selectedDate != null) {
+                          showTimePicker(
+                            context: context,
+                            initialTime: TimeOfDay.now(),
+                          ).then((selectedTime) {
+                            if (selectedTime != null) {
+                              // Combine date and time
+                              var dateTime = DateTime(
+                                selectedDate.year,
+                                selectedDate.month,
+                                selectedDate.day,
+                                selectedTime.hour,
+                                selectedTime.minute,
+                              );
+                              // Format date and time
+                              var formattedDateTime =
+                                  DateFormat('dd/MM/yyyy hh:mm a')
+                                      .format(dateTime)
+                                      .toString();
+                              // Update the expiry date and time
+                              setState(() {
+                                _expiryController = formattedDateTime;
+                              });
+                            }
+                          });
+                        }
+                      });
+                    },
+                    child: const Text('Select'),
+                  ),
+                ),
+              ],
+            ),
+            // Add a button to pick an image
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  ElevatedButton(
+                    onPressed: _pickImage,
+                    child: const Text('Pick Image'),
+                  ),
+                  // If an image has been picked, display the image in 150x150
+                  if (_foodImage != null)
+                    Padding(
+                      padding: const EdgeInsets.all(8.0),
+                      child: Image.file(
+                        _foodImage!,
+                        width: 150,
+                        height: 150,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            // Add a button to submit the form
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: ElevatedButton(
+                onPressed: () {
+                  // Get the values from the text fields and add to a donation object
+                  var donation = Donation(
+                    foodName: foodNameController.text,
+                    category: dropdownValue,
+                    amount: int.parse(amountController.text),
+                    time: _expiryController,
+                    image: _foodImage,
+                  );
+                  // Add the donation object to the app state
+                  widget.appState.listDonation(donation);
+                  // Navigate back to the donation page
+                  Navigator.pop(context);
+                },
+                child: const Text('Submit'),
+              ),
+            ),
+          ],
         ),
-      ],
+      ),
     );
   }
 }
 
 class Donation {
   final String foodName;
-  final String donor;
   final String category;
   final int amount;
   final String time;
+  final File? image;
 
   Donation({
     required this.foodName,
-    required this.donor,
     required this.category,
     required this.amount,
     required this.time,
+    required this.image,
   });
 }
 
@@ -664,11 +921,6 @@ class DonationTile extends StatelessWidget {
                       fontSize: 18,
                     ),
                   ),
-                  Text(
-                    donation.donor,
-                    style:
-                        const TextStyle(fontSize: 14, color: Colors.deepOrange),
-                  ),
                   const SizedBox(height: 8),
                   Text(
                     donation.category,
@@ -699,10 +951,8 @@ class DonationTile extends StatelessWidget {
                   ),
                   child: Padding(
                     padding: const EdgeInsets.all(8.0),
-                    child: FadeInImage.assetNetwork(
-                      placeholder: 'assets/loading.gif',
-                      image:
-                          'https://live.staticflickr.com/2665/4006883441_9d154ccbf7_b.jpg',
+                    child: Image.file(
+                      donation.image!,
                       width: 150,
                       height: 150,
                     ),
