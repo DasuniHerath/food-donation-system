@@ -3,19 +3,20 @@ import 'package:provider/provider.dart';
 import 'package:web_socket_channel/io.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'dart:io';
 
 class OrganizationApp extends StatelessWidget {
   const OrganizationApp({
     super.key,
     required this.token,
+    required this.hosturl,
   });
   final String token;
+  final String hosturl;
 
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
-      create: (context) => OrganizationAppState(token: token),
+      create: (context) => OrganizationAppState(token: token, hosturl: hosturl),
       child: const OrgNavigationBar(),
     );
   }
@@ -24,19 +25,12 @@ class OrganizationApp extends StatelessWidget {
 class OrganizationAppState extends ChangeNotifier {
   OrganizationAppState({
     required this.token,
+    required this.hosturl,
   });
 
   final String token;
+  final String hosturl;
 
-  final wsUrlOrgHistory = Uri.parse(Platform.isAndroid
-      ? 'ws://207.148.117.189/orghistory'
-      : 'ws://207.148.117.189/orghistory');
-  final wsUrlOrgRequests = Uri.parse(Platform.isAndroid
-      ? 'ws://207.148.117.189/orgrequests'
-      : 'ws://207.148.117.189/orgrequests');
-  final wsUrlOrgMembers = Uri.parse(Platform.isAndroid
-      ? 'ws://207.148.117.189/orgMembers'
-      : 'ws://207.148.117.189/orgMembers');
   bool isOrgHistoryConnected = false;
   bool isOrgRequestsConnected = false;
   bool isOrgMembersConnected = false;
@@ -49,13 +43,41 @@ class OrganizationAppState extends ChangeNotifier {
   var requests = <Request>[];
   var employees = <Employee>[];
 
+  Uri getUrl(int num) {
+    switch (num) {
+      case 1:
+        return Uri.parse('ws://$hosturl/orghistory');
+      case 2:
+        return Uri.parse('ws://$hosturl/orgrequests');
+      case 3:
+        return Uri.parse('ws://$hosturl/orgMembers');
+      case 4:
+        return Uri.parse('http://$hosturl/add_request/');
+      default:
+        return Uri.parse('ws://$hosturl/ws');
+    }
+  }
+
+  Uri getUrlWithId(int num, int id) {
+    switch (num) {
+      case 1:
+        return Uri.parse('http://$hosturl/delete_request/?id=$id');
+      case 2:
+        return Uri.parse('http://$hosturl/add_member/?memberid=$id');
+      case 3:
+        return Uri.parse('http://$hosturl/remove_member/?memberid=$id');
+      default:
+        return Uri.parse('ws://$hosturl/ws');
+    }
+  }
+
   void connectOrgHistory() async {
     // connect to websocket only if aleady not connected
     if (isOrgHistoryConnected) {
       return;
     }
 
-    orgHistoryChannel = IOWebSocketChannel.connect(wsUrlOrgHistory);
+    orgHistoryChannel = IOWebSocketChannel.connect(getUrl(1));
     // wait until orgHistoryChannel connected and write a message to the socket
     await orgHistoryChannel.ready;
     // Write a message to the socket
@@ -77,7 +99,7 @@ class OrganizationAppState extends ChangeNotifier {
     if (isOrgRequestsConnected) {
       return;
     }
-    orgRequestsChannel = IOWebSocketChannel.connect(wsUrlOrgRequests);
+    orgRequestsChannel = IOWebSocketChannel.connect(getUrl(2));
     await orgRequestsChannel.ready;
     // Write a message to the socket
     orgRequestsChannel.sink.add(token);
@@ -97,7 +119,7 @@ class OrganizationAppState extends ChangeNotifier {
     if (isOrgMembersConnected) {
       return;
     }
-    orgMembersChannel = IOWebSocketChannel.connect(wsUrlOrgMembers);
+    orgMembersChannel = IOWebSocketChannel.connect(getUrl(3));
     await orgMembersChannel.ready;
     // Write a message to the socket
     orgMembersChannel.sink.add(token);
@@ -126,10 +148,7 @@ class OrganizationAppState extends ChangeNotifier {
 
   Future<http.Response> addRequestToServer(
       int category, int amount, String comAddress) {
-    return http.post(
-        Uri.parse(Platform.isAndroid
-            ? 'http://207.148.117.189/add_request/'
-            : 'http://207.148.117.189/add_request/'),
+    return http.post(getUrl(4),
         headers: <String, String>{
           'Content-Type': 'application/json; charset=UTF-8',
           'Authorization': 'Bearer $token',
@@ -145,9 +164,7 @@ class OrganizationAppState extends ChangeNotifier {
 
   Future<http.Response> cancelRequest(int id) async {
     final http.Response response = await http.delete(
-      Uri.parse(Platform.isAndroid
-          ? 'http://207.148.117.189/delete_request/?id=$id'
-          : 'http://207.148.117.189/delete_request/?id=$id'),
+      getUrlWithId(1, id),
       headers: <String, String>{
         'Content-Type': 'application/json; charset=UTF-8',
         'Authorization': 'Bearer $token',
@@ -158,9 +175,7 @@ class OrganizationAppState extends ChangeNotifier {
 
   Future<http.Response> addMember(int id) {
     return http.post(
-      Uri.parse(Platform.isAndroid
-          ? 'http://207.148.117.189/add_member/?memberid=$id'
-          : 'http://207.148.117.189/add_member/?memberid=$id'),
+      getUrlWithId(2, id),
       headers: <String, String>{
         'Content-Type': 'application/json; charset=UTF-8',
         'Authorization': 'Bearer $token',
@@ -170,9 +185,7 @@ class OrganizationAppState extends ChangeNotifier {
 
   Future<http.Response> fireMember(int id) async {
     final http.Response response = await http.delete(
-      Uri.parse(Platform.isAndroid
-          ? 'http://207.148.117.189/remove_member/?memberid=$id'
-          : 'http://207.148.117.189/remove_member/?memberid=$id'),
+      getUrlWithId(3, id),
       headers: <String, String>{
         'Content-Type': 'application/json; charset=UTF-8',
         'Authorization': 'Bearer $token',

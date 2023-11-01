@@ -3,37 +3,32 @@ import 'package:provider/provider.dart';
 import 'package:web_socket_channel/io.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'dart:io';
 
 class DonorApp extends StatelessWidget {
-  const DonorApp({super.key, required this.token});
+  const DonorApp({super.key, required this.token, required this.hosturl});
   final String token;
+  final String hosturl;
 
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
-      create: (context) => DonorAppState(token: token),
+      create: (context) => DonorAppState(token: token, hosturl: hosturl),
       child: const OrgNavigationBar(),
     );
   }
 }
 
 class DonorAppState extends ChangeNotifier {
-  DonorAppState({required this.token});
+  DonorAppState({required this.token, required this.hosturl});
 
   final String token;
+  final String hosturl;
 
   var history = <Request>[];
   var requests = <Request>[];
+  var donations = <Donation>[];
 
   final List<String> items = List<String>.generate(100, (i) => "Item $i");
-
-  final wsUrlDonRequests = Uri.parse(Platform.isAndroid
-      ? 'ws://207.148.117.189/donorrequests'
-      : 'ws://207.148.117.189/donorrequests');
-  final wsUrlDonHistory = Uri.parse(Platform.isAndroid
-      ? 'ws://207.148.117.189/donorhistory'
-      : 'ws://207.148.117.189/donorhistory');
 
   late IOWebSocketChannel channelDonRequests;
   late IOWebSocketChannel channelDonHistory;
@@ -41,9 +36,31 @@ class DonorAppState extends ChangeNotifier {
   bool isDonRequestsConnected = false;
   bool isDonHistoryConnected = false;
 
+  Uri getUrl(int num) {
+    switch (num) {
+      case 1:
+        return Uri.parse('ws://$hosturl/donorrequests');
+      case 2:
+        return Uri.parse('ws://$hosturl/donorhistory');
+      default:
+        return Uri.parse('ws://$hosturl/ws');
+    }
+  }
+
+  Uri getUrlWithId(int num, int id) {
+    switch (num) {
+      case 1:
+        return Uri.parse('http://$hosturl/accept_donation/?id=$id');
+      case 2:
+        return Uri.parse('http://$hosturl/reject_donation/?id=$id');
+      default:
+        return Uri.parse('ws://$hosturl/ws');
+    }
+  }
+
   void connectDonRequests() async {
     if (isDonRequestsConnected) return;
-    channelDonRequests = IOWebSocketChannel.connect(wsUrlDonRequests);
+    channelDonRequests = IOWebSocketChannel.connect(getUrl(1));
     await channelDonRequests.ready;
     channelDonRequests.sink.add(token);
     isDonRequestsConnected = true;
@@ -60,7 +77,7 @@ class DonorAppState extends ChangeNotifier {
 
   void connectDonHistory() async {
     if (isDonHistoryConnected) return;
-    channelDonHistory = IOWebSocketChannel.connect(wsUrlDonHistory);
+    channelDonHistory = IOWebSocketChannel.connect(getUrl(2));
     await channelDonHistory.ready;
     channelDonHistory.sink.add(token);
     isDonHistoryConnected = true;
@@ -77,9 +94,7 @@ class DonorAppState extends ChangeNotifier {
 
   Future<http.Response> acceptDonRequest(int id) async {
     return http.put(
-      Uri.parse(Platform.isAndroid
-          ? 'http://207.148.117.189/accept_donation/?id=$id'
-          : 'http://207.148.117.189/accept_donation/?id=$id'),
+      getUrlWithId(1, id),
       headers: <String, String>{
         'Content-Type': 'application/json; charset=UTF-8',
         'Authorization': 'bearer $token',
@@ -89,9 +104,7 @@ class DonorAppState extends ChangeNotifier {
 
   Future<http.Response> rejectDonRequest(int id) async {
     return http.delete(
-      Uri.parse(Platform.isAndroid
-          ? 'http://207.148.117.189/reject_donation/?id=$id'
-          : 'http://207.148.117.189/reject_donation/?id=$id'),
+      getUrlWithId(2, id),
       headers: <String, String>{
         'Content-Type': 'application/json; charset=UTF-8',
         'Authorization': 'bearer $token',
@@ -578,16 +591,13 @@ class DonationPage extends StatelessWidget {
         Expanded(
           child: ListView(
             children: [
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8.0),
-                child: DonationTile(
-                  donation: Donation(
-                      foodName: "Rice and Curry",
-                      category: "Rice",
-                      amount: 10,
-                      time: DateTime.now().hour.toString()),
+              for (var donation in appState.donations)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8.0),
+                  child: DonationTile(
+                    donation: donation,
+                  ),
                 ),
-              ),
             ],
           ),
         ),
@@ -598,12 +608,14 @@ class DonationPage extends StatelessWidget {
 
 class Donation {
   final String foodName;
+  final String donor;
   final String category;
   final int amount;
   final String time;
 
   Donation({
     required this.foodName,
+    required this.donor,
     required this.category,
     required this.amount,
     required this.time,
@@ -623,50 +635,83 @@ class DonationTile extends StatelessWidget {
       onTap: () {
         print('tapped');
       },
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.start,
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(8),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.grey.withOpacity(0.2),
+              spreadRadius: 1,
+              blurRadius: 3,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.start,
+                children: [
+                  Text(
+                    donation.foodName,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                    ),
+                  ),
+                  Text(
+                    donation.donor,
+                    style:
+                        const TextStyle(fontSize: 14, color: Colors.deepOrange),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    donation.category,
+                    style: const TextStyle(fontSize: 14),
+                  ),
+                  Text(
+                    donation.amount.toString(),
+                    style: const TextStyle(fontSize: 14),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(child: Container()),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Text(
-                  donation.foodName,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 18,
+                // An internet image
+                Container(
+                  decoration: BoxDecoration(
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.grey.withOpacity(0.2),
+                        spreadRadius: 1,
+                        blurRadius: 3,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: FadeInImage.assetNetwork(
+                      placeholder: 'assets/loading.gif',
+                      image:
+                          'https://live.staticflickr.com/2665/4006883441_9d154ccbf7_b.jpg',
+                      width: 150,
+                      height: 150,
+                    ),
                   ),
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  donation.category,
-                  style: const TextStyle(fontSize: 14),
-                ),
-                Text(
-                  donation.amount.toString(),
-                  style: const TextStyle(fontSize: 14),
-                ),
               ],
-            ),
-          ),
-          Expanded(child: Container()),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              // An internet image
-              Padding(
-                padding: const EdgeInsets.all(8.0),
-                child: Image.network(
-                  'https://live.staticflickr.com/2665/4006883441_9d154ccbf7_b.jpg',
-                  width: 150,
-                  height: 150,
-                ),
-              ),
-            ],
-          )
-        ],
+            )
+          ],
+        ),
       ),
     );
   }

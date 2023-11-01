@@ -34,6 +34,8 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
+  final String hosturl = '207.148.117.189';
+
   TextEditingController nameController = TextEditingController();
   TextEditingController passwordController = TextEditingController();
 
@@ -74,8 +76,8 @@ class _LoginPageState extends State<LoginPage> {
   Future<http.Response> addOrgToServer(String token) async {
     return http.post(
       Uri.parse(Platform.isAndroid
-          ? 'http://207.148.117.189/add_organization/'
-          : 'http://207.148.117.189/add_organization/'),
+          ? 'http://$hosturl/add_organization/'
+          : 'http://$hosturl/add_organization/'),
       headers: <String, String>{
         'Content-Type': 'application/json; charset=UTF-8',
         'Authorization': 'Bearer $token',
@@ -86,8 +88,8 @@ class _LoginPageState extends State<LoginPage> {
   Future<http.Response> addDonToServer(String token) async {
     return http.post(
       Uri.parse(Platform.isAndroid
-          ? 'http://207.148.117.189/add_donor/'
-          : 'http://207.148.117.189/add_donor/'),
+          ? 'http://$hosturl/add_donor/'
+          : 'http://$hosturl/add_donor/'),
       headers: <String, String>{
         'Content-Type': 'application/json; charset=UTF-8',
         'Authorization': 'Bearer $token',
@@ -98,8 +100,8 @@ class _LoginPageState extends State<LoginPage> {
   Future<http.Response> addMemToServer(String token) async {
     return http.post(
       Uri.parse(Platform.isAndroid
-          ? 'http://207.148.117.189/load_member/'
-          : 'http://207.148.117.189/load_member/'),
+          ? 'http://$hosturl/load_member/'
+          : 'http://$hosturl/load_member/'),
       headers: <String, String>{
         'Content-Type': 'application/json; charset=UTF-8',
         'Authorization': 'Bearer $token',
@@ -168,6 +170,7 @@ class _LoginPageState extends State<LoginPage> {
                             MaterialPageRoute(
                                 builder: (context) => OrganizationApp(
                                       token: getToken(nameController.text),
+                                      hosturl: hosturl,
                                     )));
                       } else if (typeMap[nameController.text] == 2) {
                         addDonToServer(getToken(nameController.text));
@@ -175,14 +178,18 @@ class _LoginPageState extends State<LoginPage> {
                             context,
                             MaterialPageRoute(
                                 builder: (context) => DonorApp(
-                                    token: getToken(nameController.text))));
+                                      token: getToken(nameController.text),
+                                      hosturl: hosturl,
+                                    )));
                       } else if (typeMap[nameController.text] == 3) {
                         addMemToServer(getToken(nameController.text));
                         Navigator.push(
                             context,
                             MaterialPageRoute(
                                 builder: (context) => MemberApp(
-                                    token: getToken(nameController.text))));
+                                      token: getToken(nameController.text),
+                                      hosturl: hosturl,
+                                    )));
                       }
                     } else {
                       // Show error message

@@ -3,37 +3,29 @@ import 'package:provider/provider.dart';
 import 'package:web_socket_channel/io.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'dart:io';
 
 class MemberApp extends StatelessWidget {
-  const MemberApp({
-    super.key,
-    required this.token,
-  });
+  const MemberApp({super.key, required this.token, required this.hosturl});
 
   final String token;
+  final String hosturl;
 
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
-      create: (context) => MemberAppState(token: token),
+      create: (context) => MemberAppState(token: token, hosturl: hosturl),
       child: const OrgNavigationBar(),
     );
   }
 }
 
 class MemberAppState extends ChangeNotifier {
-  MemberAppState({
-    required this.token,
-  });
+  MemberAppState({required this.token, required this.hosturl});
 
   final String token;
+  final String hosturl;
 
   var deliveries = <Delivery>[];
-
-  final wsUrlDelivery = Uri.parse(Platform.isAndroid
-      ? 'ws://207.148.117.189/memberdelivery'
-      : 'ws://207.148.117.189/memberdelivery');
 
   late IOWebSocketChannel wsDeliveryChannel;
 
@@ -42,9 +34,30 @@ class MemberAppState extends ChangeNotifier {
 
   bool status = false;
 
+  Uri getUrl(int num) {
+    switch (num) {
+      case 1:
+        return Uri.parse('ws://$hosturl/memberdelivery');
+      case 2:
+        return Uri.parse('http://$hosturl/get_status/');
+      case 3:
+        return Uri.parse('http://$hosturl/reject_delivery/');
+      default:
+        return Uri.parse('ws://$hosturl/ws');
+    }
+  }
+
+  Uri getUrlWithId(int id) {
+    return Uri.parse('http://$hosturl/update_delivery/?newState=$id');
+  }
+
+  Uri getUrlWithState(bool state) {
+    return Uri.parse('http://$hosturl/change_status/?status=$state');
+  }
+
   void connectwsDelivery() async {
     if (iswsDeliveryConnected) return;
-    wsDeliveryChannel = IOWebSocketChannel.connect(wsUrlDelivery);
+    wsDeliveryChannel = IOWebSocketChannel.connect(getUrl(1));
     await wsDeliveryChannel.ready;
     wsDeliveryChannel.sink.add(token);
     iswsDeliveryConnected = true;
@@ -61,9 +74,7 @@ class MemberAppState extends ChangeNotifier {
 
   Future<http.Response> setStatusActive(bool status) async {
     return http.put(
-      Uri.parse(Platform.isAndroid
-          ? 'http://207.148.117.189/change_status/?status=$status'
-          : 'http://207.148.117.189/change_status/?status=$status'),
+      getUrlWithState(status),
       headers: <String, String>{
         'Content-Type': 'application/json; charset=UTF-8',
         'Authorization': 'bearer $token',
@@ -73,9 +84,7 @@ class MemberAppState extends ChangeNotifier {
 
   Future<http.Response> getStatus() async {
     return await http.get(
-      Uri.parse(Platform.isAndroid
-          ? 'http://207.148.117.189/get_status/'
-          : 'http://207.148.117.189/get_status/'),
+      getUrl(2),
       headers: <String, String>{
         'Content-Type': 'application/json; charset=UTF-8',
         'Authorization': 'bearer $token',
@@ -85,9 +94,7 @@ class MemberAppState extends ChangeNotifier {
 
   Future<http.Response> rejectDelivery(String reason) async {
     return http.delete(
-      Uri.parse(Platform.isAndroid
-          ? 'http://207.148.117.189/reject_delivery/'
-          : 'http://207.148.117.189/reject_delivery/'),
+      getUrl(3),
       headers: <String, String>{
         'Content-Type': 'application/json; charset=UTF-8',
         'Authorization': 'bearer $token',
@@ -100,9 +107,7 @@ class MemberAppState extends ChangeNotifier {
 
   Future<http.Response> updateDelivetyState(int newState) async {
     return http.put(
-      Uri.parse(Platform.isAndroid
-          ? 'http://207.148.117.189/update_delivery/?newState=$newState'
-          : 'http://207.148.117.189/update_delivery/?newState=$newState'),
+      getUrlWithId(newState),
       headers: <String, String>{
         'Content-Type': 'application/json; charset=UTF-8',
         'Authorization': 'bearer $token',
