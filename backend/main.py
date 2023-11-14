@@ -1,11 +1,12 @@
 import time
-from fastapi import FastAPI, Query, WebSocket, Depends,  HTTPException, BackgroundTasks
+from fastapi import FastAPI, Query, WebSocket, Depends,  HTTPException, BackgroundTasks, File, UploadFile
 from fastapi.security import OAuth2PasswordBearer
 from datetime import datetime
 from models import *
 from users import organization, donor, member
 from sqlalchemy.orm import Session
 from database import SessionLocal, engine
+
 
 # Category limit
 CATEGORY_LIMIT = 3

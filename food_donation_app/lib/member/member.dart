@@ -278,15 +278,23 @@ class _RequestPageState extends State<RequestPage> {
                   alignment: Alignment.centerRight,
                   child: ElevatedButton(
                     onPressed: () {
+                      // Get next delivery state
+                      var delState = appState.deliveries.isEmpty
+                          ? 'Waiting'
+                          : statusDictReverse[appState.deliveries[0].status + 1]
+                              .toString();
                       showDialog(
                         context: context,
-                        builder: (context) => DeliveryOptionsDialog(),
-                      ).then((delState) {
-                        if (delState != null) {
+                        builder: (context) =>
+                            DeliveryOptionsDialog(option: delState),
+                      ).then((option) {
+                        if (option != null) {
+                          // If option is cancel, do nothing
+                          if (option == 'Cancel') return;
                           setState(() {
                             // Change the status
                             appState.updateDelivetyState(
-                                statusDict[delState.toString()]!);
+                                appState.deliveries[0].status + 1);
                           });
                         }
                       });
@@ -304,31 +312,25 @@ class _RequestPageState extends State<RequestPage> {
 }
 
 class DeliveryOptionsDialog extends StatelessWidget {
-  final List<String> deliveryOptions = [
-    'On the way',
-    'Collected',
-    'Delivering',
-    'Delivered'
-  ];
+  final String option;
 
-  DeliveryOptionsDialog({super.key});
+  const DeliveryOptionsDialog({super.key, required this.option});
 
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Delivery Status'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          for (var option in deliveryOptions)
-            ListTile(
-              title: Text(option),
-              onTap: () {
-                Navigator.pop(context, option);
-              },
-            ),
-        ],
-      ),
+      title: const Text('Change delivery status'),
+      content: Text("Do you want to change the delivery status to $option?"),
+      actions: <Widget>[
+        TextButton(
+          onPressed: () => Navigator.pop(context, 'Cancel'),
+          child: const Text('No'),
+        ),
+        TextButton(
+          onPressed: () => Navigator.pop(context, 'OK'),
+          child: const Text('Yes'),
+        ),
+      ],
     );
   }
 }

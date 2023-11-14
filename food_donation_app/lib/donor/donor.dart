@@ -119,6 +119,11 @@ class DonorAppState extends ChangeNotifier {
     donations.add(donation);
     notifyListeners();
   }
+
+  void removeDonation(Donation donation) {
+    donations.remove(donation);
+    notifyListeners();
+  }
 }
 
 class OrgNavigationBar extends StatefulWidget {
@@ -413,42 +418,61 @@ class RequestBottomSheet extends StatelessWidget {
             ),
             // button
             const SizedBox(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                ElevatedButton(
-                  onPressed: () {
-                    appState.acceptDonRequest(request.id);
-                    Navigator.pop(context);
-                  },
-                  style: ButtonStyle(
-                    backgroundColor:
-                        MaterialStateProperty.all<Color>(Colors.deepOrange),
-                    minimumSize:
-                        MaterialStateProperty.all<Size>(const Size(100, 50)),
+            if (request.status == 'Waiting')
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  ElevatedButton(
+                    onPressed: () {
+                      appState.acceptDonRequest(request.id);
+                      Navigator.pop(context);
+                    },
+                    style: ButtonStyle(
+                      backgroundColor:
+                          MaterialStateProperty.all<Color>(Colors.deepOrange),
+                      minimumSize:
+                          MaterialStateProperty.all<Size>(const Size(100, 50)),
+                    ),
+                    child: const Text('Donate',
+                        style: TextStyle(color: Colors.white)),
                   ),
-                  child: const Text('Donate',
-                      style: TextStyle(color: Colors.white)),
-                ),
-              ],
-            ),
+                ],
+              ),
             const SizedBox(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                ElevatedButton(
-                  onPressed: () {
-                    appState.rejectDonRequest(request.id);
-                    Navigator.pop(context);
-                  },
-                  style: ButtonStyle(
-                    minimumSize:
-                        MaterialStateProperty.all<Size>(const Size(100, 50)),
+            // display if status is 0
+            if (request.status == 'Waiting')
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  ElevatedButton(
+                    onPressed: () {
+                      appState.rejectDonRequest(request.id);
+                      Navigator.pop(context);
+                    },
+                    style: ButtonStyle(
+                      minimumSize:
+                          MaterialStateProperty.all<Size>(const Size(100, 50)),
+                    ),
+                    child: const Text('Reject'),
                   ),
-                  child: const Text('Reject'),
-                ),
-              ],
-            ),
+                ],
+              ),
+
+            // Display the status if it's not waiting
+            if (request.status != 'Waiting')
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    request.status,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.green,
+                      fontSize: 30,
+                    ),
+                  ),
+                ],
+              ),
           ],
         ),
       ),
@@ -550,8 +574,8 @@ class Request {
   // A dictionary to get status name from status id
   static const statusDict = {
     0: 'Waiting',
-    1: 'Found',
-    2: 'Rejected',
+    1: 'Rejected',
+    2: 'Found',
     3: 'Cancelled',
     4: 'On the way',
     5: 'Collected',
@@ -667,7 +691,7 @@ class _DonationFormState extends State<DonationForm> {
   Future<void> _pickImage() async {
     final imagePicker = ImagePicker();
     final pickedImage = await imagePicker.pickImage(
-      source: ImageSource.gallery,
+      source: ImageSource.gallery, // you can change it to camera also
       imageQuality: 80,
       maxWidth: 800,
     );
@@ -675,7 +699,8 @@ class _DonationFormState extends State<DonationForm> {
     if (pickedImage != null) {
       // Check the file extension to ensure it's a .jpg image
       if (pickedImage.path.endsWith('.webp') ||
-          pickedImage.path.endsWith('.jpg')) {
+          pickedImage.path.endsWith('.jpg') ||
+          pickedImage.path.endsWith('.jpeg')) {
         setState(() {
           _foodImage = File(pickedImage.path);
           debugPrint('Image Path: ${_foodImage?.path}');
@@ -840,6 +865,16 @@ class _DonationFormState extends State<DonationForm> {
               padding: const EdgeInsets.all(8.0),
               child: ElevatedButton(
                 onPressed: () {
+                  try {
+                    int.parse(amountController.text);
+                  } catch (e) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Amount must be a number'),
+                      ),
+                    );
+                    return;
+                  }
                   // Get the values from the text fields and add to a donation object
                   var donation = Donation(
                     foodName: foodNameController.text,
@@ -848,6 +883,18 @@ class _DonationFormState extends State<DonationForm> {
                     time: _expiryController,
                     image: _foodImage,
                   );
+                  // Validate the donation object
+                  if (donation.foodName.isEmpty ||
+                      donation.amount <= 0 ||
+                      donation.time == '00/00/0000 00:00 AM' ||
+                      donation.image == null) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Required fields are missing'),
+                      ),
+                    );
+                    return;
+                  }
                   // Add the donation object to the app state
                   widget.appState.listDonation(donation);
                   // Navigate back to the donation page
@@ -879,6 +926,86 @@ class Donation {
   });
 }
 
+class DonationBottomSheet extends StatelessWidget {
+  const DonationBottomSheet(
+      {super.key, required this.donation, required this.appState});
+
+  final Donation donation;
+  final DonorAppState appState;
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: const BorderRadius.only(
+        topLeft: Radius.circular(16.0),
+        topRight: Radius.circular(16.0),
+      ),
+      child: Column(
+        children: [
+          Container(
+            height: 200, // replace with your value
+            decoration: BoxDecoration(
+              image: DecorationImage(
+                image: FileImage(donation.image!),
+                fit: BoxFit.cover,
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(12.0),
+            child: Text(
+              donation.foodName,
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 20,
+              ),
+            ),
+          ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                donation.category,
+                style: const TextStyle(fontSize: 16),
+              ),
+              const SizedBox(width: 16),
+              Text(
+                '${donation.amount.toString()} qty',
+                style: const TextStyle(fontSize: 16, color: Colors.deepOrange),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            'Expiry Date and Time',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          Text(
+            donation.time,
+            style: const TextStyle(fontSize: 14),
+          ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: ElevatedButton(
+                    onPressed: () {
+                      // Remove the donation from the app state
+                      appState.removeDonation(donation);
+                      Navigator.pop(context);
+                    },
+                    child: const Text('Cancel')),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class DonationTile extends StatelessWidget {
   const DonationTile({
     super.key,
@@ -888,9 +1015,15 @@ class DonationTile extends StatelessWidget {
   final Donation donation;
   @override
   Widget build(BuildContext context) {
+    var app = context.watch<DonorAppState>();
     return InkWell(
       onTap: () {
-        print('tapped');
+        showModalBottomSheet(
+            context: context,
+            builder: (context) => DonationBottomSheet(
+                  donation: donation,
+                  appState: app,
+                ));
       },
       child: Container(
         decoration: BoxDecoration(

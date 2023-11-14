@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:web_socket_channel/io.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'dart:io';
 
 class OrganizationApp extends StatelessWidget {
   const OrganizationApp({
@@ -42,6 +43,7 @@ class OrganizationAppState extends ChangeNotifier {
   var history = <Request>[];
   var requests = <Request>[];
   var employees = <Employee>[];
+  var donations = <Donation>[];
 
   Uri getUrl(int num) {
     switch (num) {
@@ -208,6 +210,18 @@ class _OrgNavigationBarState extends State<OrgNavigationBar> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      // A setting button in top right corner
+      appBar: AppBar(
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.settings),
+            iconSize: 40,
+            onPressed: () {
+              // Add your settings functionality here
+            },
+          ),
+        ],
+      ),
       bottomNavigationBar: NavigationBar(
         onDestinationSelected: (int index) {
           setState(() {
@@ -238,7 +252,7 @@ class _OrgNavigationBarState extends State<OrgNavigationBar> {
         ),
         Container(
           alignment: Alignment.center,
-          child: const Text('Donate'),
+          child: const DonationPage(),
         ),
         Container(alignment: Alignment.center, child: const HistoryPage()),
         Container(
@@ -578,12 +592,13 @@ class EmployeeTile extends StatelessWidget {
                 ],
               ),
             ),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(employee.status),
-              ],
-            )
+            // TODO: Add status
+            // Column(Todo
+            //   crossAxisAlignment: CrossAxisAlignment.end,
+            //   children: [
+            //     Text(employee.status),
+            //   ],
+            // )
           ],
         ),
       ),
@@ -876,8 +891,8 @@ class Request {
   // A dictionary to get status name from status id
   static const statusDict = {
     0: 'Waiting',
-    1: 'Found',
-    2: 'Rejected',
+    1: 'Rejected',
+    2: 'Found',
     3: 'Cancelled',
     4: 'On the way',
     5: 'Collected',
@@ -1106,6 +1121,231 @@ class _NewEmployeeState extends State<NewEmployee> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class Donation {
+  final String foodName;
+  final String category;
+  final int amount;
+  final String time;
+  final File? image;
+
+  Donation({
+    required this.foodName,
+    required this.category,
+    required this.amount,
+    required this.time,
+    required this.image,
+  });
+}
+
+class DonationPage extends StatelessWidget {
+  const DonationPage({super.key});
+  @override
+  Widget build(BuildContext context) {
+    var appState = context.watch<OrganizationAppState>();
+    return SafeArea(
+      child: Column(
+        children: [
+          const Padding(
+            padding: EdgeInsets.all(8.0),
+            child: Text(
+              'Listed Donations',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 24,
+              ),
+            ),
+          ),
+          Expanded(
+            child: ListView(
+              children: [
+                for (var donation in appState.donations)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8.0),
+                    child: DonationTile(
+                      donation: donation,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class DonationTile extends StatelessWidget {
+  const DonationTile({
+    super.key,
+    required this.donation,
+  });
+
+  final Donation donation;
+  @override
+  Widget build(BuildContext context) {
+    var app = context.watch<OrganizationAppState>();
+    return InkWell(
+      onTap: () {
+        showModalBottomSheet(
+            context: context,
+            builder: (context) => DonationBottomSheet(
+                  donation: donation,
+                  appState: app,
+                ));
+      },
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(8),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.grey.withOpacity(0.2),
+              spreadRadius: 1,
+              blurRadius: 3,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.start,
+                children: [
+                  Text(
+                    donation.foodName,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    donation.category,
+                    style: const TextStyle(fontSize: 14),
+                  ),
+                  Text(
+                    donation.amount.toString(),
+                    style: const TextStyle(fontSize: 14),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(child: Container()),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                // An internet image
+                Container(
+                  decoration: BoxDecoration(
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.grey.withOpacity(0.2),
+                        spreadRadius: 1,
+                        blurRadius: 3,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: Image.file(
+                      donation.image!,
+                      width: 150,
+                      height: 150,
+                    ),
+                  ),
+                ),
+              ],
+            )
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class DonationBottomSheet extends StatelessWidget {
+  const DonationBottomSheet(
+      {super.key, required this.donation, required this.appState});
+
+  final Donation donation;
+  final OrganizationAppState appState;
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: const BorderRadius.only(
+        topLeft: Radius.circular(16.0),
+        topRight: Radius.circular(16.0),
+      ),
+      child: Column(
+        children: [
+          Container(
+            height: 200, // replace with your value
+            decoration: BoxDecoration(
+              image: DecorationImage(
+                image: FileImage(donation.image!),
+                fit: BoxFit.cover,
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(12.0),
+            child: Text(
+              donation.foodName,
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 20,
+              ),
+            ),
+          ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                donation.category,
+                style: const TextStyle(fontSize: 16),
+              ),
+              const SizedBox(width: 16),
+              Text(
+                '${donation.amount.toString()} qty',
+                style: const TextStyle(fontSize: 16, color: Colors.deepOrange),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            'Expiry Date and Time',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          Text(
+            donation.time,
+            style: const TextStyle(fontSize: 14),
+          ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: ElevatedButton(
+                    onPressed: () {
+                      Navigator.pop(context);
+                    },
+                    child: const Text('Cancel')),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
