@@ -34,7 +34,7 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
-  final String hosturl = '207.148.117.189';
+  final String hosturl = '178.128.106.190';
 
   TextEditingController nameController = TextEditingController();
   TextEditingController passwordController = TextEditingController();

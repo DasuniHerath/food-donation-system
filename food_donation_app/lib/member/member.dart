@@ -55,6 +55,10 @@ class MemberAppState extends ChangeNotifier {
     return Uri.parse('http://$hosturl/change_status/?status=$state');
   }
 
+  Uri getUrlWithRate(int rate) {
+    return Uri.parse('http://$hosturl/add_rating/?rate=$rate');
+  }
+
   void connectwsDelivery() async {
     if (iswsDeliveryConnected) return;
     wsDeliveryChannel = IOWebSocketChannel.connect(getUrl(1));
@@ -108,6 +112,16 @@ class MemberAppState extends ChangeNotifier {
   Future<http.Response> updateDelivetyState(int newState) async {
     return http.put(
       getUrlWithId(newState),
+      headers: <String, String>{
+        'Content-Type': 'application/json; charset=UTF-8',
+        'Authorization': 'bearer $token',
+      },
+    );
+  }
+
+  Future<http.Response> addRating(int rate) async {
+    return http.put(
+      getUrlWithRate(rate),
       headers: <String, String>{
         'Content-Type': 'application/json; charset=UTF-8',
         'Authorization': 'bearer $token',
@@ -207,105 +221,120 @@ class _RequestPageState extends State<RequestPage> {
     var appState = context.watch<MemberAppState>();
     appState.connectwsDelivery();
     initToggle();
+    // If delivery state is 7 (Delivered), show rating page
     return Column(
       children: [
+        if (appState.deliveries.isNotEmpty &&
+            appState.deliveries[0].status == 7) ...[
+          SafeArea(
+            child: AlertDialog(
+              title: const Text('Rate your experience',
+                  textAlign: TextAlign.center),
+              content: HeartRating(appState: appState),
+            ),
+          )
+        ],
         const SizedBox(height: 28),
         // Togle switch between active and inactive
-        SwitchListTile(
-          // Title in large font
-          title: const Text(
-            'Status',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
+        if ((appState.deliveries.isNotEmpty &&
+                appState.deliveries[0].status != 7) ||
+            (appState.deliveries.isEmpty)) ...[
+          SwitchListTile(
+            // Title in large font
+            title: const Text(
+              'Status',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            value: toggle,
+            onChanged: (bool value) {
+              setState(() {
+                toggle = !toggle;
+                appState.setStatusActive(toggle);
+              });
+            },
+            activeColor: Colors.green,
+          ),
+
+          Expanded(
+            child: ListView(
+              children: [
+                for (var request in appState.deliveries)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8.0),
+                    child: DonorTile(
+                      request: request,
+                      appsState: appState,
+                    ),
+                  ),
+              ],
             ),
           ),
-          value: toggle,
-          onChanged: (bool value) {
-            setState(() {
-              toggle = !toggle;
-              appState.setStatusActive(toggle);
-            });
-          },
-          activeColor: Colors.green,
-        ),
 
-        Expanded(
-          child: ListView(
-            children: [
-              for (var request in appState.deliveries)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 8.0),
-                  child: DonorTile(
-                    request: request,
-                    appsState: appState,
+          // A row that containing a text and a button next to it
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Delivery Status:  ',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
-            ],
-          ),
-        ),
+                Text(
+                  // if appState.deliveries[0].status is null, show 'Waiting'
+                  // else show the status name
+                  appState.deliveries.isEmpty
+                      ? 'Waiting'
+                      : statusDictReverse[appState.deliveries[0].status]
+                          .toString(),
 
-        // A row that containing a text and a button next to it
-        Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                'Delivery Status:  ',
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              Text(
-                // if appState.deliveries[0].status is null, show 'Waiting'
-                // else show the status name
-                appState.deliveries.isEmpty
-                    ? 'Waiting'
-                    : statusDictReverse[appState.deliveries[0].status]
-                        .toString(),
-
-                style: const TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.green,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Align(
-                  alignment: Alignment.centerRight,
-                  child: ElevatedButton(
-                    onPressed: () {
-                      // Get next delivery state
-                      var delState = appState.deliveries.isEmpty
-                          ? 'Waiting'
-                          : statusDictReverse[appState.deliveries[0].status + 1]
-                              .toString();
-                      showDialog(
-                        context: context,
-                        builder: (context) =>
-                            DeliveryOptionsDialog(option: delState),
-                      ).then((option) {
-                        if (option != null) {
-                          // If option is cancel, do nothing
-                          if (option == 'Cancel') return;
-                          setState(() {
-                            // Change the status
-                            appState.updateDelivetyState(
-                                appState.deliveries[0].status + 1);
-                          });
-                        }
-                      });
-                    },
-                    child: const Text('Change'),
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.green,
                   ),
                 ),
-              )
-            ],
+                Expanded(
+                  child: Align(
+                    alignment: Alignment.centerRight,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        // Get next delivery state
+                        var delState = appState.deliveries.isEmpty
+                            ? 'Waiting'
+                            : statusDictReverse[
+                                    appState.deliveries[0].status + 1]
+                                .toString();
+                        showDialog(
+                          context: context,
+                          builder: (context) =>
+                              DeliveryOptionsDialog(option: delState),
+                        ).then((option) {
+                          if (option != null) {
+                            // If option is cancel, do nothing
+                            if (option == 'Cancel') return;
+                            setState(() {
+                              // Change the status
+                              appState.updateDelivetyState(
+                                  appState.deliveries[0].status + 1);
+                            });
+                          }
+                        });
+                      },
+                      child: const Text('Change'),
+                    ),
+                  ),
+                )
+              ],
+            ),
           ),
-        ),
+        ]
       ],
     );
   }
@@ -572,6 +601,71 @@ class RejectPageState extends State<RejectPage> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class HeartRating extends StatefulWidget {
+  final MemberAppState appState;
+  const HeartRating({super.key, required this.appState});
+
+  @override
+  HeartRatingState createState() => HeartRatingState();
+}
+
+class HeartRatingState extends State<HeartRating> {
+  int _rating = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Padding(
+            padding: EdgeInsets.all(8.0),
+            child: Text(
+              'Rate your overall experience with the donor and donation',
+              style: TextStyle(fontSize: 20),
+              softWrap: true,
+              textAlign: TextAlign.center,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: List.generate(5, (index) {
+              return IconButton(
+                iconSize: 35,
+                icon: Icon(
+                  _rating > index ? Icons.favorite : Icons.favorite_border,
+                ),
+                color: _rating > index ? Colors.deepOrange : Colors.grey,
+                onPressed: () {
+                  setState(() {
+                    _rating = index + 1;
+                  });
+                },
+              );
+            }),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              ElevatedButton(
+                onPressed: () {
+                  widget.appState.addRating(_rating);
+                },
+                child: const Text('Submit'),
+              ),
+              const SizedBox(width: 10),
+              ElevatedButton(onPressed: () {}, child: const Text('Cancel')),
+            ],
+          )
+        ],
       ),
     );
   }
