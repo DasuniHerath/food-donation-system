@@ -75,17 +75,20 @@ def find_donors(orgId: int, request: request_body):
         print(donor_org_requests)
         donFlags[donor.id].requests_update.set()
 
-def finish_delivery(user_id: int):
+async def  handle_delivery_update(user_id: int, newState: int): 
     # Update the status of the delivery in organization and donor
     org_index = find_the_index(member_don_org_requests[user_id][0], member_don_org_requests[user_id][1])
     don_index = find_the_index_donor(member_don_org_requests[user_id][2], member_don_org_requests[user_id][3])
-    get_organization_by_id(member_don_org_requests[user_id][0]).requests[org_index].status = 7
-    donors[member_don_org_requests[user_id][2]].requests[don_index].status = 7
+    get_organization_by_id(member_don_org_requests[user_id][0]).requests[org_index].status = newState
+    donors[member_don_org_requests[user_id][2]].requests[don_index].status = newState
     orgFlags[member_don_org_requests[user_id][0]].requests_update.set()
     donFlags[member_don_org_requests[user_id][2]].requests_update.set()
 
-    # wait for 10 seconds
-    time.sleep(10)
+    if newState != 7:
+        return
+
+    # wait for the rating
+    await memFlags[user_id].rating_update.wait()
 
     # Remove from requests
     get_organization_by_id(member_don_org_requests[user_id][0]).requests.pop(org_index)
@@ -95,7 +98,24 @@ def finish_delivery(user_id: int):
     donFlags[member_don_org_requests[user_id][2]].requests_update.set()
     memFlags[user_id].delivery_update.set()
 
+    # Clear rating flag
+    memFlags[user_id].rating_update.clear()
+
     # TODO: Remove from member_don_org_requests dictionary and member_don_org_requests dictionary
+
+def handle_rating_update(rate: int, user_id: int):
+    new_rating = RatingSQL(
+        orgid=get_organization_by_id(member_don_org_requests[user_id][0]).id,
+        donid=donors[member_don_org_requests[user_id][2]].id,
+        memid=user_id,
+        rate=rate
+    )
+    # Add the new rating to the session
+    db.add(new_rating)
+
+    # Commit the transaction
+    db.commit()
+    memFlags[user_id].rating_update.set()
 
 def get_current_user(token: str = Depends(oauth2_scheme)):
     user = None
@@ -469,7 +489,8 @@ async def change_status(id: int, user_id: int = Depends(get_current_donUser)):
                 amount=donors[user_id].requests[find_the_index_donor(user_id, id)].amount, 
                 time=datetime.now(), 
                 donorAddress=tmp_donor.Address, 
-                communityAddress=donors[user_id].requests[find_the_index_donor(user_id, id)].comAddress, 
+                communityAddress=donors[user_id].requests[find_the_index_donor(user_id, id)].comAddress,
+                status=4
             )
             # Update member in request_body for both organization and donor
             get_organization_by_id(org_id).requests[find_the_index(org_id, req_id)].member = member.id
@@ -610,8 +631,21 @@ async def update_delivery(newState: int, background_tasks: BackgroundTasks, user
     members[user_id].delivery.status = newState
     # Set the flag up
     memFlags[user_id].delivery_update.set()
-    background_tasks.add_task(finish_delivery, user_id)
+    background_tasks.add_task(handle_delivery_update, user_id, newState)
     return {"message": "Delivery updated successfully"}
+
+# Add ratings to a particular delivery
+@app.put("/add_rating/")
+async def add_rating(rate: int, background_tasks: BackgroundTasks, user_id: int = Depends(get_current_memUser)):
+    # Ratings are between 1 and 5
+    if rate <1 or rate >5:
+        return {"message": "Ratings should be between 1 and 5"}
+    # Reject ratings given before finishing delivery
+    if members[user_id].delivery.status != 7:
+        return {"message": "Cannot rate at this point"}
+    background_tasks.add_task(handle_rating_update, rate, user_id)
+    return {"message": "Your rate added to the donor"}
+    
 
 @app.websocket("/memberdelivery")
 async def websocket_endpoint(websocket: WebSocket):
