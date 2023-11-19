@@ -9,7 +9,7 @@ from dateutil.parser import parse
 Base = declarative_base()
 
 class MemberSQL(Base):
-    __tablename__ = "members"
+    __tablename__ = "member"
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, index=True)
@@ -17,7 +17,7 @@ class MemberSQL(Base):
     phone = Column(String, index=True)
 
 class OrganizationSQL(Base):
-    __tablename__ = "organizations"
+    __tablename__ = "organization"
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, index=True)
@@ -25,12 +25,22 @@ class OrganizationSQL(Base):
     Address = Column(String, index=True)
 
 class DonorSQL(Base):
-    __tablename__ = "donors"
+    __tablename__ = "donor"
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, index=True)
     City = Column(String, index=True)
     Address = Column(String, index=True)
+
+class RatingSQL(Base):
+    __tablename__ = "rating"
+    delno = Column(Integer, primary_key=True, autoincrement=True)
+    orgid = Column(Integer)
+    donid = Column(Integer) 
+    memid = Column(Integer)
+    rate = Column(Integer)
+
+
 
 # Request should have a body with the following fields
         # A unique id for each request
@@ -130,5 +140,7 @@ class flagsDon():
 class flagsMem():
     def __init__(self):
         self.delivery_update = asyncio.Event()
+        self.rating_update = asyncio.Event()
     
     delivery_update: asyncio.Event
+    rating_update: asyncio.Event
