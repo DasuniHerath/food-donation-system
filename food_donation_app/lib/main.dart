@@ -114,6 +114,16 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
+  // Send usernam and password to server and recieve token
+  Future<http.Response> getTokenFromServer(
+      String username, String password) async {
+    return http.post(
+      Uri.parse(Platform.isAndroid
+          ? 'http://$hosturl/token/?username=$username&password=$password'
+          : 'http://$hosturl/token/?username=$username&password=$password'),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return SafeArea(
@@ -198,23 +208,73 @@ class _LoginPageState extends State<LoginPage> {
                                       )));
                         }
                       } else {
-                        // Show error message
-                        showDialog(
-                            context: context,
-                            builder: (BuildContext context) {
-                              return AlertDialog(
-                                title: const Text("Error"),
-                                content: const Text(
-                                    "Invalid username or password. Please try again."),
-                                actions: [
-                                  TextButton(
-                                      onPressed: () {
-                                        Navigator.of(context).pop();
-                                      },
-                                      child: const Text("Close"))
-                                ],
-                              );
-                            });
+                        // if token recieved from sserver
+                        getTokenFromServer(
+                                nameController.text, passwordController.text)
+                            .then((value) {
+                          if (value.statusCode == 200) {
+                            // If token recieved from server
+                            // Add token to token map
+                            tokenMap[nameController.text] =
+                                jsonDecode(value.body)['access'];
+                            // Add username and password to password map
+                            passwordMap[nameController.text] =
+                                passwordController.text;
+                            // Add type to type map
+                            typeMap[nameController.text] =
+                                jsonDecode(value.body)['type'];
+                            // Add user to server
+                            if (typeMap[nameController.text] == 1) {
+                              addOrgToServer(getToken(nameController.text));
+                              Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                      builder: (context) => OrganizationApp(
+                                            token:
+                                                getToken(nameController.text),
+                                            hosturl: hosturl,
+                                          )));
+                            } else if (typeMap[nameController.text] == 2) {
+                              addDonToServer(getToken(nameController.text));
+                              Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                      builder: (context) => DonorApp(
+                                            token:
+                                                getToken(nameController.text),
+                                            hosturl: hosturl,
+                                          )));
+                            } else if (typeMap[nameController.text] == 3) {
+                              addMemToServer(getToken(nameController.text));
+                              Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                      builder: (context) => MemberApp(
+                                            token:
+                                                getToken(nameController.text),
+                                            hosturl: hosturl,
+                                          )));
+                            }
+                          } else {
+                            // Show error message
+                            showDialog(
+                                context: context,
+                                builder: (BuildContext context) {
+                                  return AlertDialog(
+                                    title: const Text("Error"),
+                                    content: const Text(
+                                        "Invalid username or password. Please try again."),
+                                    actions: [
+                                      TextButton(
+                                          onPressed: () {
+                                            Navigator.of(context).pop();
+                                          },
+                                          child: const Text("Close"))
+                                    ],
+                                  );
+                                });
+                          }
+                        });
                       }
                     }),
               ),

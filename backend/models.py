@@ -41,6 +41,14 @@ class RatingSQL(Base):
     memid = Column(Integer)
     rate = Column(Integer)
 
+# A table containing username, password hash and token
+class UserSQL(Base):
+    __tablename__ = "user"
+
+    username = Column(String, primary_key=True, index=True)
+    password = Column(String, index=True)
+    token = Column(String, index=True)
+
 
 
 # Request body with the following fields

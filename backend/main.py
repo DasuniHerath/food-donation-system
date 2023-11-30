@@ -196,6 +196,21 @@ def find_not_found_requests(user_id: int):
 async def root():
     return {"message": "The Help - Food Donation System"}
 
+#-------------------------------Authentication---------------------------------------------------------------
+# Get username and password and return a token
+@app.post("/token/")
+async def login_for_access_token(username: str, password: str):
+    # Check if the username and password are correct by fetching the user from db
+    user = db.query(UserSQL).filter(UserSQL.username == username).first()
+    # If the user is not in db return error
+    if user == None:
+        raise HTTPException(status_code=401, detail="Incorrect username or password")
+    # If the password is not correct return error
+    if user.password != hash(password):
+        raise HTTPException(status_code=401, detail="Incorrect username or password")
+    # Return the token
+    return {"access_token": user.token, "token_type": "bearer"}
+
 #-------------------------------Organization---------------------------------------------------------------
 
 # Load an organization into the organization list
