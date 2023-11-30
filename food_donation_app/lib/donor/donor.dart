@@ -6,39 +6,43 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
+import '../chat.dart';
 
 class DonorApp extends StatelessWidget {
   const DonorApp({super.key, required this.token, required this.hosturl});
-  final String token;
-  final String hosturl;
+  final String token; // The token for authentication of the user
+  final String hosturl; // The url of the server
 
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
       create: (context) => DonorAppState(token: token, hosturl: hosturl),
-      child: const OrgNavigationBar(),
+      child: const OrgNavigationBar(), // Create the navigation bar
     );
   }
 }
 
+// The state of Donor App
 class DonorAppState extends ChangeNotifier {
   DonorAppState({required this.token, required this.hosturl});
 
-  final String token;
-  final String hosturl;
+  final String token; // The token for authentication of the user
+  final String hosturl; // The url of the server
 
+  // Lists to store data from the server
   var history = <Request>[];
   var requests = <Request>[];
   var donations = <Donation>[];
 
-  final List<String> items = List<String>.generate(100, (i) => "Item $i");
-
+  // Websocket channels
   late IOWebSocketChannel channelDonRequests;
   late IOWebSocketChannel channelDonHistory;
 
+  // Check if the websocket is connected
   bool isDonRequestsConnected = false;
   bool isDonHistoryConnected = false;
 
+  // Create the relevent urls with the given host url
   Uri getUrl(int num) {
     switch (num) {
       case 1:
@@ -50,6 +54,7 @@ class DonorAppState extends ChangeNotifier {
     }
   }
 
+  // Create the relevent urls with the given host url and query parameter
   Uri getUrlWithId(int num, int id) {
     switch (num) {
       case 1:
@@ -61,40 +66,45 @@ class DonorAppState extends ChangeNotifier {
     }
   }
 
+  // Connect to the websocket channel request
   void connectDonRequests() async {
     if (isDonRequestsConnected) return;
     channelDonRequests = IOWebSocketChannel.connect(getUrl(1));
     await channelDonRequests.ready;
-    channelDonRequests.sink.add(token);
+    channelDonRequests.sink.add(token); // Send the token for authentication
     isDonRequestsConnected = true;
     channelDonRequests.stream.listen((message) {
       updateDonRequests(message);
     });
   }
 
+  // Update the requests list with the data from the server
   void updateDonRequests(String message) {
     List<dynamic> jsonData = jsonDecode(message);
     requests = jsonData.map((data) => Request.fromJson(data)).toList();
     notifyListeners();
   }
 
+  // Connect to the websocket channel history
   void connectDonHistory() async {
     if (isDonHistoryConnected) return;
     channelDonHistory = IOWebSocketChannel.connect(getUrl(2));
     await channelDonHistory.ready;
-    channelDonHistory.sink.add(token);
+    channelDonHistory.sink.add(token); // Send the token for authentication
     isDonHistoryConnected = true;
     channelDonHistory.stream.listen((message) {
       updateDonHistory(message);
     });
   }
 
+  // Update the history list with the data from the server
   void updateDonHistory(String message) {
     List<dynamic> jsonData = jsonDecode(message);
     history = jsonData.map((data) => Request.fromJson(data)).toList();
     notifyListeners();
   }
 
+  // Accept a donation request
   Future<http.Response> acceptDonRequest(int id) async {
     return http.put(
       getUrlWithId(1, id),
@@ -105,6 +115,7 @@ class DonorAppState extends ChangeNotifier {
     );
   }
 
+  // Reject a donation request
   Future<http.Response> rejectDonRequest(int id) async {
     return http.delete(
       getUrlWithId(2, id),
@@ -115,17 +126,20 @@ class DonorAppState extends ChangeNotifier {
     );
   }
 
+  // Add a donation to the donations list
   void listDonation(Donation donation) {
     donations.add(donation);
     notifyListeners();
   }
 
+  // Remove a donation from the donations list
   void removeDonation(Donation donation) {
     donations.remove(donation);
     notifyListeners();
   }
 }
 
+// The navigation bar
 class OrgNavigationBar extends StatefulWidget {
   const OrgNavigationBar({super.key});
 
@@ -134,11 +148,33 @@ class OrgNavigationBar extends StatefulWidget {
 }
 
 class _OrgNavigationBarState extends State<OrgNavigationBar> {
-  int currentPageIndex = 0;
+  int currentPageIndex = 0; // The index of the selected destination
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      appBar: AppBar(
+        automaticallyImplyLeading: false,
+        actions: [
+          SafeArea(
+            child: IconButton(
+              onPressed: () {
+                // Navigate to chat page
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) =>
+                        const ChatList(title: 'Chat', type: 'Donor'),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.chat),
+              iconSize: 40,
+            ),
+          ),
+          const SizedBox(width: 8),
+        ],
+      ),
       bottomNavigationBar: NavigationBar(
         onDestinationSelected: (int index) {
           setState(() {
@@ -170,18 +206,19 @@ class _OrgNavigationBarState extends State<OrgNavigationBar> {
   }
 }
 
-// A page containing Requests
+// A page displaying requests from organizations
 class RequestPage extends StatelessWidget {
   const RequestPage({super.key});
 
   @override
   Widget build(BuildContext context) {
-    var appState = context.watch<DonorAppState>();
-    appState.connectDonRequests();
+    var appState = context.watch<DonorAppState>(); // watch the app state
+    appState.connectDonRequests(); // connect to the websocket channel
 
     return Column(
       children: [
         Expanded(
+          // Display the list of requests
           child: ListView(
             children: [
               for (var request in appState.requests)
@@ -199,16 +236,18 @@ class RequestPage extends StatelessWidget {
   }
 }
 
+// Display history of requests
 class HistoryPage extends StatelessWidget {
   const HistoryPage({super.key});
 
   @override
   Widget build(BuildContext context) {
-    var appState = context.watch<DonorAppState>();
-    appState.connectDonHistory();
+    var appState = context.watch<DonorAppState>(); // watch the app state
+    appState.connectDonHistory(); // connect to the websocket channel
 
     return ListView(
       children: [
+        // Display the list of requests of the past
         for (var request in appState.history)
           Padding(
             padding: const EdgeInsets.only(bottom: 8.0),
@@ -221,8 +260,9 @@ class HistoryPage extends StatelessWidget {
   }
 }
 
+// Tile display the key information of a request
 class RequestTile extends StatelessWidget {
-  final Request request;
+  final Request request; // The request object
 
   const RequestTile({
     Key? key,
@@ -236,6 +276,7 @@ class RequestTile extends StatelessWidget {
 
     return InkWell(
       onTap: () {
+        // Open a bottom sheet
         showModalBottomSheet(
             context: context,
             builder: (context) => RequestBottomSheet(
@@ -300,8 +341,9 @@ class RequestTile extends StatelessWidget {
   }
 }
 
+// Tile display the key information of a past request
 class HistoryTile extends StatelessWidget {
-  final Request request;
+  final Request request; // The request object
 
   const HistoryTile({
     Key? key,
@@ -312,6 +354,7 @@ class HistoryTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: () {
+        // Open a bottom sheet
         showModalBottomSheet(
             context: context,
             builder: (context) => HistoryBottomSheet(
@@ -365,9 +408,10 @@ class HistoryTile extends StatelessWidget {
   }
 }
 
+// Bottomsheet with full information of a request and buttons to accept or reject
 class RequestBottomSheet extends StatelessWidget {
-  final Request request;
-  final DonorAppState appState;
+  final Request request; // The request object
+  final DonorAppState appState; // The app state
 
   const RequestBottomSheet({
     super.key,
@@ -377,9 +421,6 @@ class RequestBottomSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // watch the app state
-    // var appState = context.watch<OrganizationAppState>();
-
     return SizedBox(
       height: 250,
       child: Padding(
@@ -416,7 +457,6 @@ class RequestBottomSheet extends StatelessWidget {
                 ),
               ],
             ),
-            // button
             const SizedBox(height: 16),
             if (request.status == 'Waiting')
               Row(
@@ -424,6 +464,7 @@ class RequestBottomSheet extends StatelessWidget {
                 children: [
                   ElevatedButton(
                     onPressed: () {
+                      // Accept the request
                       appState.acceptDonRequest(request.id);
                       Navigator.pop(context);
                     },
@@ -446,6 +487,7 @@ class RequestBottomSheet extends StatelessWidget {
                 children: [
                   ElevatedButton(
                     onPressed: () {
+                      // Reject the request
                       appState.rejectDonRequest(request.id);
                       Navigator.pop(context);
                     },
@@ -459,7 +501,7 @@ class RequestBottomSheet extends StatelessWidget {
               ),
 
             // Display the status if it's not waiting
-            if (request.status != 'Waiting')
+            if (request.status != 'Waiting') ...[
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -473,6 +515,7 @@ class RequestBottomSheet extends StatelessWidget {
                   ),
                 ],
               ),
+            ]
           ],
         ),
       ),
@@ -480,8 +523,9 @@ class RequestBottomSheet extends StatelessWidget {
   }
 }
 
+// Bottomsheet with full information of a past request
 class HistoryBottomSheet extends StatelessWidget {
-  final Request request;
+  final Request request; // The request object
 
   const HistoryBottomSheet({
     super.key,
@@ -540,6 +584,7 @@ class HistoryBottomSheet extends StatelessWidget {
   }
 }
 
+// Represents a food request
 class Request {
   final int id;
   final String date;
@@ -603,6 +648,7 @@ class Request {
   }
 }
 
+// A page displaying the list of donations
 class DonationPage extends StatelessWidget {
   const DonationPage({super.key});
   @override
@@ -624,6 +670,7 @@ class DonationPage extends StatelessWidget {
           Expanded(
             child: ListView(
               children: [
+                // Display the list of donations
                 for (var donation in appState.donations)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 8.0),
@@ -663,31 +710,36 @@ class DonationPage extends StatelessWidget {
   }
 }
 
+// A page to create a donation
 class DonationForm extends StatefulWidget {
   const DonationForm({super.key, required this.appState});
-  final DonorAppState appState;
+  final DonorAppState appState; // The app state
   @override
   // ignore: library_private_types_in_public_api
   _DonationFormState createState() => _DonationFormState();
 }
 
 class _DonationFormState extends State<DonationForm> {
-  File? _foodImage;
+  File? _foodImage; // The image of the food
 
-  TextEditingController foodNameController = TextEditingController();
-  TextEditingController amountController = TextEditingController();
+  TextEditingController foodNameController =
+      TextEditingController(); // A controller for the food name text field
+  TextEditingController amountController =
+      TextEditingController(); // A controller for the amount text field
 
   // A variable to store the expiry date and time
   String _expiryController = '00/00/0000 00:00 AM';
 
-  String dropdownValue = 'Rice';
+  String dropdownValue = 'Rice'; // The selected category
 
+  // Maps category name to icon
   Map<String, Icon> categoryDict = {
     'Rice': const Icon(Icons.rice_bowl, color: Colors.green),
     'Bread': const Icon(Icons.breakfast_dining, color: Colors.brown),
     'Fast Food': const Icon(Icons.fastfood, color: Colors.orange),
   };
 
+  // Pick an image from the gallery
   Future<void> _pickImage() async {
     final imagePicker = ImagePicker();
     final pickedImage = await imagePicker.pickImage(
@@ -702,6 +754,7 @@ class _DonationFormState extends State<DonationForm> {
           pickedImage.path.endsWith('.jpg') ||
           pickedImage.path.endsWith('.jpeg')) {
         setState(() {
+          // Update the image
           _foodImage = File(pickedImage.path);
           debugPrint('Image Path: ${_foodImage?.path}');
         });
@@ -844,6 +897,7 @@ class _DonationFormState extends State<DonationForm> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   ElevatedButton(
+                    // When the button is pressed, call _pickImage
                     onPressed: _pickImage,
                     child: const Text('Pick Image'),
                   ),
@@ -910,6 +964,7 @@ class _DonationFormState extends State<DonationForm> {
   }
 }
 
+// Represents a donation
 class Donation {
   final String foodName;
   final String category;
@@ -926,12 +981,13 @@ class Donation {
   });
 }
 
+// Display full information of a donation in a bottom sheet
 class DonationBottomSheet extends StatelessWidget {
   const DonationBottomSheet(
       {super.key, required this.donation, required this.appState});
 
-  final Donation donation;
-  final DonorAppState appState;
+  final Donation donation; // The donation object
+  final DonorAppState appState; // The app state
 
   @override
   Widget build(BuildContext context) {
@@ -1018,6 +1074,7 @@ class DonationTile extends StatelessWidget {
     var app = context.watch<DonorAppState>();
     return InkWell(
       onTap: () {
+        // Open a bottom sheet
         showModalBottomSheet(
             context: context,
             builder: (context) => DonationBottomSheet(

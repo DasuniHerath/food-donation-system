@@ -1,7 +1,116 @@
 import 'package:flutter/material.dart';
+import 'package:sqflite/sqflite.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:path/path.dart';
+import 'dart:io' as io;
 
 void main() {
   runApp(const AdminPanelApp());
+}
+
+// Database Helper for the admin panel
+class DBHelper {
+  static Database? _db;
+
+  Future<Database> get db async {
+    if (_db != null) {
+      return _db!;
+    }
+    _db = await initDatabase();
+    return _db!;
+  }
+
+  initDatabase() async {
+    io.Directory documentDirectory = await getApplicationDocumentsDirectory();
+    String path = join(documentDirectory.path, 'forms.db');
+    var db = await openDatabase(path, version: 1);
+    return db;
+  }
+
+  // Get org forms
+  Future<List<Map>> getOrgForms() async {
+    var dbClient = await db;
+    List<Map> list = await dbClient.rawQuery('SELECT * FROM orgforms');
+    return list;
+  }
+
+  // Get don forms
+  Future<List<Map>> getDonForms() async {
+    var dbClient = await db;
+    List<Map> list = await dbClient.rawQuery('SELECT * FROM donForms');
+    return list;
+  }
+
+  // Get member forms
+  Future<List<Map>> getMemberForms() async {
+    var dbClient = await db;
+    List<Map> list = await dbClient.rawQuery('SELECT * FROM memberForms');
+    return list;
+  }
+
+  // Get rejections
+  Future<List<Map>> getRejections() async {
+    var dbClient = await db;
+    List<Map> list = await dbClient.rawQuery('SELECT * FROM rejections');
+    return list;
+  }
+
+  // Get actions
+  Future<List<Map>> getActions() async {
+    var dbClient = await db;
+    List<Map> list = await dbClient.rawQuery('SELECT * FROM actions');
+    return list;
+  }
+
+  // Delete org form
+  Future<int> deleteOrgForm(int id) async {
+    var dbClient = await db;
+    return await dbClient.delete(
+      'orgForms',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  // Delete don form
+  Future<int> deleteDonForm(int id) async {
+    var dbClient = await db;
+    return await dbClient.delete(
+      'donForms',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  // Delete member form
+  Future<int> deleteMemberForm(int id) async {
+    var dbClient = await db;
+    return await dbClient.delete(
+      'memberForms',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  // Delete rejection
+  Future<int> deleteRejection(int id) async {
+    var dbClient = await db;
+    return await dbClient.delete(
+      'rejections',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  // Delete action
+  Future<int> deleteAction(int id) async {
+    var dbClient = await db;
+    return await dbClient.delete(
+      'actions',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
 }
 
 class AdminPanelApp extends StatelessWidget {
@@ -24,8 +133,8 @@ class AdminPanel extends StatefulWidget {
 }
 
 class _AdminPanelState extends State<AdminPanel> {
-  int _selectedIndex = 0;
-  NavigationRailLabelType labelType = NavigationRailLabelType.all;
+  int _selectedIndex = 0; // The index of the selected tab
+  NavigationRailLabelType labelType = NavigationRailLabelType.all; // Label type
   bool showLeading = false;
   bool showTrailing = false;
   double groupAlignment = -1.0;
@@ -41,6 +150,7 @@ class _AdminPanelState extends State<AdminPanel> {
               groupAlignment: groupAlignment,
               onDestinationSelected: (int index) {
                 setState(() {
+                  // If the list is not empty, then show no forms
                   _selectedIndex = index;
                 });
               },
@@ -96,7 +206,7 @@ class _AdminPanelState extends State<AdminPanel> {
                       ? const RejectionView()
                       : _selectedIndex == 2
                           ? const ActionView()
-                          : const Text('Settings'),
+                          : const SettingsView(),
             )
           ],
         ),
@@ -105,6 +215,7 @@ class _AdminPanelState extends State<AdminPanel> {
   }
 }
 
+// Applications from three parties
 class ApplicantTabBar extends StatefulWidget {
   const ApplicantTabBar({Key? key}) : super(key: key);
 
@@ -157,6 +268,7 @@ class ApplicantTabBarState extends State<ApplicantTabBar>
   }
 }
 
+// Applications from organizations
 class OrgFormView extends StatefulWidget {
   const OrgFormView({Key? key}) : super(key: key);
 
@@ -166,41 +278,29 @@ class OrgFormView extends StatefulWidget {
 
 class _OrgFormViewState extends State<OrgFormView> {
   int _selectedIndex = 0;
+  List<OrganizationForm> orgFormList = [];
+
+  // Populate the list with db data
+  void populateList() async {
+    var db = DBHelper();
+    List<Map> list = await db.getOrgForms();
+    for (var item in list) {
+      setState(() {
+        orgFormList.add(OrganizationForm(
+            name: item['name'],
+            leader: item['leader'],
+            email: item['email'],
+            phone: item['phone'],
+            address: item['address'],
+            noOfMembers: item['noOfMembers'],
+            reason: item['reason'],
+            communities: item['communities']));
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    List<OrganizationForm> orgFormList = [
-      const OrganizationForm(
-        name: 'Organization 1',
-        leader: 'Leader 1',
-        email: 'Email 1',
-        phone: 'Phone 1',
-        address: 'Address 1',
-        noOfMembers: 1,
-        reason: 'Reason 1',
-        communities: ['Community 1'],
-      ),
-      const OrganizationForm(
-        name: 'Organization 2',
-        leader: 'Leader 2',
-        email: 'Email 2',
-        phone: 'Phone 2',
-        address: 'Address 2',
-        noOfMembers: 2,
-        reason: 'Reason 2',
-        communities: ['Community 2'],
-      ),
-      const OrganizationForm(
-        name: 'Organization 3',
-        leader: 'Leader 3',
-        email: 'Email 3',
-        phone: 'Phone 3',
-        address: 'Address 3',
-        noOfMembers: 3,
-        reason: 'Reason 3',
-        communities: ['Community 3'],
-      ),
-    ];
-
     return Row(
       children: <Widget>[
         Expanded(
@@ -208,12 +308,18 @@ class _OrgFormViewState extends State<OrgFormView> {
           child: ListView(
             children: [
               for (var orgForm in orgFormList) ...[
+                // Show the list of forms
                 ListTile(
                   title: Text(orgForm.name),
                   subtitle: Text(orgForm.email),
                   onTap: () {
                     setState(() {
-                      _selectedIndex = orgFormList.indexOf(orgForm);
+                      // If the list is not empty, then show no forms
+                      if (orgFormList.isNotEmpty) {
+                        _selectedIndex = orgFormList.indexOf(orgForm);
+                      } else {
+                        _selectedIndex = -1;
+                      }
                     });
                   },
                 ),
@@ -230,22 +336,27 @@ class _OrgFormViewState extends State<OrgFormView> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Name: ${orgFormList[_selectedIndex].name}'),
-                const SizedBox(height: 8),
-                Text('Leader: ${orgFormList[_selectedIndex].leader}'),
-                const SizedBox(height: 8),
-                Text('Email: ${orgFormList[_selectedIndex].email}'),
-                const SizedBox(height: 8),
-                Text('Phone: ${orgFormList[_selectedIndex].phone}'),
-                const SizedBox(height: 8),
-                Text('Address: ${orgFormList[_selectedIndex].address}'),
-                const SizedBox(height: 8),
-                Text(
-                    'No. of Members: ${orgFormList[_selectedIndex].noOfMembers}'),
-                const SizedBox(height: 8),
-                Text('Communities: ${orgFormList[_selectedIndex].communities}'),
-                const SizedBox(height: 8),
-                Text('Reason: ${orgFormList[_selectedIndex].reason}'),
+                if (orgFormList.isEmpty)
+                  const Text('No Forms')
+                else ...[
+                  Text('Name: ${orgFormList[_selectedIndex].name}'),
+                  const SizedBox(height: 8),
+                  Text('Leader: ${orgFormList[_selectedIndex].leader}'),
+                  const SizedBox(height: 8),
+                  Text('Email: ${orgFormList[_selectedIndex].email}'),
+                  const SizedBox(height: 8),
+                  Text('Phone: ${orgFormList[_selectedIndex].phone}'),
+                  const SizedBox(height: 8),
+                  Text('Address: ${orgFormList[_selectedIndex].address}'),
+                  const SizedBox(height: 8),
+                  Text(
+                      'No. of Members: ${orgFormList[_selectedIndex].noOfMembers}'),
+                  const SizedBox(height: 8),
+                  Text(
+                      'Communities: ${orgFormList[_selectedIndex].communities}'),
+                  const SizedBox(height: 8),
+                  Text('Reason: ${orgFormList[_selectedIndex].reason}'),
+                ]
               ],
             ),
           ),
@@ -259,7 +370,12 @@ class _OrgFormViewState extends State<OrgFormView> {
               ElevatedButton(
                   onPressed: () {
                     setState(() {
-                      // TODO: Handle removal
+                      // Handle removal
+                      orgFormList.removeAt(_selectedIndex);
+                      // Remove from db
+                      var db = DBHelper();
+                      db.deleteOrgForm(_selectedIndex);
+                      _selectedIndex = 0;
                     });
                     // Show A SnackBar
                     ScaffoldMessenger.of(context).showSnackBar(
@@ -273,7 +389,11 @@ class _OrgFormViewState extends State<OrgFormView> {
               ElevatedButton(
                   onPressed: () {
                     setState(() {
-                      // TODO: Handle removal
+                      orgFormList.removeAt(_selectedIndex);
+                      // Remove from db
+                      var db = DBHelper();
+                      db.deleteOrgForm(_selectedIndex);
+                      _selectedIndex = 0;
                     });
                     // Show A SnackBar
                     ScaffoldMessenger.of(context).showSnackBar(
@@ -291,47 +411,37 @@ class _OrgFormViewState extends State<OrgFormView> {
   }
 }
 
+// Applications from donors
 class DonFormView extends StatefulWidget {
   const DonFormView({Key? key}) : super(key: key);
 
   @override
-  _DonFormView createState() => _DonFormView();
+  createState() => _DonFormView();
 }
 
 class _DonFormView extends State<DonFormView> {
   int _selectedIndex = 0;
+  List<DonorForm> donFormList = [];
+
+  // Populate the list with db data
+  void populateList() async {
+    var db = DBHelper();
+    List<Map> list = await db.getDonForms();
+    for (var item in list) {
+      setState(() {
+        donFormList.add(DonorForm(
+            name: item['name'],
+            email: item['email'],
+            phone: item['phone'],
+            address: item['address'],
+            reason: item['reason'],
+            timePeriods: item['timePeriods']));
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    List<DonorForm> donFormList = [
-      const DonorForm(
-        name: 'Donor 1',
-        email: 'Email 1',
-        phone: 'Phone 1',
-        address: 'Address 1',
-        reason: 'Reason 1',
-        communities: ['Community 1'],
-        timePeriods: ['Time Period 1'],
-      ),
-      const DonorForm(
-        name: 'Donor 2',
-        email: 'Email 2',
-        phone: 'Phone 2',
-        address: 'Address 2',
-        reason: 'Reason 2',
-        communities: ['Community 2'],
-        timePeriods: ['Time Period 2'],
-      ),
-      const DonorForm(
-        name: 'Donor 3',
-        email: 'Email 3',
-        phone: 'Phone 3',
-        address: 'Address 3',
-        reason: 'Reason 3',
-        communities: ['Community 3'],
-        timePeriods: ['Time Period 3'],
-      ),
-    ];
-
     return Row(
       children: <Widget>[
         Expanded(
@@ -344,7 +454,11 @@ class _DonFormView extends State<DonFormView> {
                   subtitle: Text(orgForm.email),
                   onTap: () {
                     setState(() {
-                      _selectedIndex = donFormList.indexOf(orgForm);
+                      if (donFormList.isNotEmpty) {
+                        _selectedIndex = donFormList.indexOf(orgForm);
+                      } else {
+                        _selectedIndex = -1;
+                      }
                     });
                   },
                 ),
@@ -361,19 +475,23 @@ class _DonFormView extends State<DonFormView> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Name: ${donFormList[_selectedIndex].name}'),
-                const SizedBox(height: 8),
-                Text('Email: ${donFormList[_selectedIndex].email}'),
-                const SizedBox(height: 8),
-                Text('Phone: ${donFormList[_selectedIndex].phone}'),
-                const SizedBox(height: 8),
-                Text('Address: ${donFormList[_selectedIndex].address}'),
-                const SizedBox(height: 8),
-                Text(
-                    'Time Periods: ${donFormList[_selectedIndex].timePeriods}'),
-                const SizedBox(height: 8),
-                Text(
-                    'Reason for joining: ${donFormList[_selectedIndex].reason}'),
+                if (donFormList.isEmpty)
+                  const Text('No Forms')
+                else ...[
+                  Text('Name: ${donFormList[_selectedIndex].name}'),
+                  const SizedBox(height: 8),
+                  Text('Email: ${donFormList[_selectedIndex].email}'),
+                  const SizedBox(height: 8),
+                  Text('Phone: ${donFormList[_selectedIndex].phone}'),
+                  const SizedBox(height: 8),
+                  Text('Address: ${donFormList[_selectedIndex].address}'),
+                  const SizedBox(height: 8),
+                  Text(
+                      'Time Periods: ${donFormList[_selectedIndex].timePeriods}'),
+                  const SizedBox(height: 8),
+                  Text(
+                      'Reason for joining: ${donFormList[_selectedIndex].reason}'),
+                ]
               ],
             ),
           ),
@@ -387,7 +505,11 @@ class _DonFormView extends State<DonFormView> {
               ElevatedButton(
                   onPressed: () {
                     setState(() {
-                      // TODO: Handle removal
+                      donFormList.removeAt(_selectedIndex);
+                      // Remove from db
+                      var db = DBHelper();
+                      db.deleteDonForm(_selectedIndex);
+                      _selectedIndex = 0;
                     });
                     // Show A SnackBar
                     ScaffoldMessenger.of(context).showSnackBar(
@@ -401,7 +523,11 @@ class _DonFormView extends State<DonFormView> {
               ElevatedButton(
                   onPressed: () {
                     setState(() {
-                      // TODO: Handle removal
+                      donFormList.removeAt(_selectedIndex);
+                      // Remove from db
+                      var db = DBHelper();
+                      db.deleteDonForm(_selectedIndex);
+                      _selectedIndex = 0;
                     });
                     // Show A SnackBar
                     ScaffoldMessenger.of(context).showSnackBar(
@@ -419,6 +545,7 @@ class _DonFormView extends State<DonFormView> {
   }
 }
 
+// List of member application
 class MemFormView extends StatefulWidget {
   const MemFormView({Key? key}) : super(key: key);
 
@@ -428,32 +555,27 @@ class MemFormView extends StatefulWidget {
 
 class _MemFormView extends State<MemFormView> {
   int _selectedIndex = 0;
+  List<MemberForm> memFormList = [];
+
+  // Populate the list with db data
+  void populateList() async {
+    var db = DBHelper();
+    List<Map> list = await db.getMemberForms();
+    for (var item in list) {
+      setState(() {
+        memFormList.add(MemberForm(
+            name: item['name'],
+            email: item['email'],
+            phone: item['phone'],
+            address: item['address'],
+            age: item['age'],
+            gender: item['gender']));
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    List<MemberForm> memFormList = [
-      const MemberForm(
-          name: 'Member 1',
-          email: 'Email 1',
-          phone: 'Phone 1',
-          address: 'Address 1',
-          age: 24,
-          gender: 'Male'),
-      const MemberForm(
-          name: 'Member 2',
-          email: 'Email 2',
-          phone: 'Phone 1',
-          address: 'Address 1',
-          age: 24,
-          gender: 'Male'),
-      const MemberForm(
-          name: 'Member 2',
-          email: 'Email 2',
-          phone: 'Phone 1',
-          address: 'Address 1',
-          age: 24,
-          gender: 'Male'),
-    ];
-
     return Row(
       children: <Widget>[
         Expanded(
@@ -466,7 +588,11 @@ class _MemFormView extends State<MemFormView> {
                   subtitle: Text(memForm.email),
                   onTap: () {
                     setState(() {
-                      _selectedIndex = memFormList.indexOf(memForm);
+                      if (memFormList.isNotEmpty) {
+                        _selectedIndex = memFormList.indexOf(memForm);
+                      } else {
+                        _selectedIndex = -1;
+                      }
                     });
                   },
                 ),
@@ -480,9 +606,11 @@ class _MemFormView extends State<MemFormView> {
           flex: 2,
           child: Padding(
             padding: const EdgeInsets.all(24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              if (memFormList.isEmpty)
+                const Text('No Forms')
+              else ...[
                 Text('Name: ${memFormList[_selectedIndex].name}'),
                 const SizedBox(height: 8),
                 Text('Email: ${memFormList[_selectedIndex].email}'),
@@ -494,8 +622,8 @@ class _MemFormView extends State<MemFormView> {
                 Text('Age: ${memFormList[_selectedIndex].age}'),
                 const SizedBox(height: 8),
                 Text('Gender: ${memFormList[_selectedIndex].gender}'),
-              ],
-            ),
+              ]
+            ]),
           ),
         ),
         Padding(
@@ -507,7 +635,11 @@ class _MemFormView extends State<MemFormView> {
               ElevatedButton(
                   onPressed: () {
                     setState(() {
-                      // TODO: Handle removal
+                      memFormList.removeAt(_selectedIndex);
+                      // Remove from db
+                      var db = DBHelper();
+                      db.deleteMemberForm(_selectedIndex);
+                      _selectedIndex = 0;
                     });
                     // Show A SnackBar
                     ScaffoldMessenger.of(context).showSnackBar(
@@ -521,7 +653,11 @@ class _MemFormView extends State<MemFormView> {
               ElevatedButton(
                   onPressed: () {
                     setState(() {
-                      // TODO: Handle removal
+                      memFormList.removeAt(_selectedIndex);
+                      // Remove from db
+                      var db = DBHelper();
+                      db.deleteMemberForm(_selectedIndex);
+                      _selectedIndex = 0;
                     });
                     // Show A SnackBar
                     ScaffoldMessenger.of(context).showSnackBar(
@@ -568,7 +704,6 @@ class DonorForm {
     required this.phone,
     required this.address,
     required this.reason,
-    required this.communities,
     required this.timePeriods,
   });
 
@@ -577,7 +712,6 @@ class DonorForm {
   final String phone;
   final String address;
   final String reason;
-  final List<String> communities;
   final List<String> timePeriods;
 }
 
@@ -607,41 +741,29 @@ class RejectionView extends StatefulWidget {
 
 class _RejectionViewState extends State<RejectionView> {
   int _selectedIndex = 0;
+  List<Rejection> rejectionList = [];
+
+  // Populate the list with db data
+  void populateList() async {
+    var db = DBHelper();
+    List<Map> list = await db.getRejections();
+    for (var item in list) {
+      setState(() {
+        rejectionList.add(Rejection(
+            donName: item['donName'],
+            orgName: item['orgName'],
+            memName: item['memName'],
+            donId: item['donId'],
+            orgId: item['orgId'],
+            memId: item['memId'],
+            reason: item['reason'],
+            date: item['date']));
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    List<Rejection> rejectionList = [
-      Rejection(
-        donName: 'Donor 1',
-        orgName: 'Organization 1',
-        memName: 'Member 1',
-        donId: 1,
-        orgId: 1,
-        memId: 1,
-        reason: 'Reason 1',
-        date: DateTime(2021, 10, 10),
-      ),
-      Rejection(
-        donName: 'Donor 2',
-        orgName: 'Organization 2',
-        memName: 'Member 2',
-        donId: 2,
-        orgId: 2,
-        memId: 2,
-        reason: 'Reason 2',
-        date: DateTime(2021, 10, 10),
-      ),
-      Rejection(
-        donName: 'Donor 3',
-        orgName: 'Organization 3',
-        memName: 'Member 3',
-        donId: 3,
-        orgId: 3,
-        memId: 3,
-        reason: 'Reason 3',
-        date: DateTime(2021, 10, 10),
-      ),
-    ];
-
     return Row(
       children: <Widget>[
         Expanded(
@@ -671,16 +793,20 @@ class _RejectionViewState extends State<RejectionView> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Donor Name: ${rejectionList[_selectedIndex].donName}'),
-                const SizedBox(height: 8),
-                Text(
-                    'Organization Name: ${rejectionList[_selectedIndex].orgName}'),
-                const SizedBox(height: 8),
-                Text('Member Name: ${rejectionList[_selectedIndex].memName}'),
-                const SizedBox(height: 8),
-                Text('Reason: ${rejectionList[_selectedIndex].reason}'),
-                const SizedBox(height: 8),
-                Text('Date: ${rejectionList[_selectedIndex].date}'),
+                if (rejectionList.isEmpty)
+                  const Text('No Rejections')
+                else ...[
+                  Text('Donor Name: ${rejectionList[_selectedIndex].donName}'),
+                  const SizedBox(height: 8),
+                  Text(
+                      'Organization Name: ${rejectionList[_selectedIndex].orgName}'),
+                  const SizedBox(height: 8),
+                  Text('Member Name: ${rejectionList[_selectedIndex].memName}'),
+                  const SizedBox(height: 8),
+                  Text('Reason: ${rejectionList[_selectedIndex].reason}'),
+                  const SizedBox(height: 8),
+                  Text('Date: ${rejectionList[_selectedIndex].date}'),
+                ]
               ],
             ),
           ),
@@ -693,7 +819,76 @@ class _RejectionViewState extends State<RejectionView> {
             children: [
               ElevatedButton(
                   onPressed: () {
-                    // TODO: Show some actions
+                    // Show a diolog with options
+                    showDialog(
+                      context: context,
+                      builder: (BuildContext context) {
+                        return AlertDialog(
+                          title: const Text('Actions'),
+                          content: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              ElevatedButton(
+                                  onPressed: () {
+                                    setState(() {
+                                      rejectionList.removeAt(_selectedIndex);
+                                      // Remove from db
+                                      var db = DBHelper();
+                                      db.deleteRejection(_selectedIndex);
+                                      _selectedIndex = 0;
+                                    });
+                                    // Show A SnackBar
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('Donor Banned'),
+                                      ),
+                                    );
+                                    Navigator.of(context).pop();
+                                  },
+                                  child: const Text('Ban')),
+                              const SizedBox(height: 8),
+                              ElevatedButton(
+                                  onPressed: () {
+                                    setState(() {
+                                      rejectionList.removeAt(_selectedIndex);
+                                      // Remove from db
+                                      var db = DBHelper();
+                                      db.deleteRejection(_selectedIndex);
+                                      _selectedIndex = 0;
+                                    });
+                                    // Show A SnackBar
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('Donor Suspended'),
+                                      ),
+                                    );
+                                    Navigator.of(context).pop();
+                                  },
+                                  child: const Text('Suspend')),
+                              const SizedBox(height: 8),
+                              ElevatedButton(
+                                  onPressed: () {
+                                    setState(() {
+                                      rejectionList.removeAt(_selectedIndex);
+                                      // Remove from db
+                                      var db = DBHelper();
+                                      db.deleteRejection(_selectedIndex);
+                                      _selectedIndex = 0;
+                                    });
+                                    // Show A SnackBar
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('Action Ignored'),
+                                      ),
+                                    );
+                                    Navigator.of(context).pop();
+                                  },
+                                  child: const Text('Ignore'))
+                            ],
+                          ),
+                        );
+                      },
+                    );
                   },
                   child: const Text('Actions'))
             ],
@@ -735,29 +930,25 @@ class ActionView extends StatefulWidget {
 
 class _ActionView extends State<ActionView> {
   int _selectedIndex = 0;
+  List<NeededAction> actionList = [];
+
+  // Populate the list with db data
+  void populateList() async {
+    var db = DBHelper();
+    List<Map> list = await db.getActions();
+    for (var item in list) {
+      setState(() {
+        actionList.add(NeededAction(
+            id: item['id'],
+            name: item['name'],
+            type: item['type'],
+            concern: item['concern']));
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    List<NeededAction> actionList = [
-      const NeededAction(
-        id: '1',
-        name: 'Action 1',
-        type: 'Organization',
-        concern: 'Concern 1',
-      ),
-      const NeededAction(
-        id: '2',
-        name: 'Action 1',
-        type: 'Donor',
-        concern: 'Concern 1',
-      ),
-      const NeededAction(
-        id: '3',
-        name: 'Action 1',
-        type: 'Member',
-        concern: 'Concern 1',
-      ),
-    ];
-
     return Row(
       children: <Widget>[
         Expanded(
@@ -770,7 +961,11 @@ class _ActionView extends State<ActionView> {
                   subtitle: Text(action.type),
                   onTap: () {
                     setState(() {
-                      _selectedIndex = actionList.indexOf(action);
+                      if (actionList.isNotEmpty) {
+                        _selectedIndex = actionList.indexOf(action);
+                      } else {
+                        _selectedIndex = -1;
+                      }
                     });
                   },
                 ),
@@ -787,13 +982,17 @@ class _ActionView extends State<ActionView> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('ID: ${actionList[_selectedIndex].id}'),
-                const SizedBox(height: 8),
-                Text('Name: ${actionList[_selectedIndex].name}'),
-                const SizedBox(height: 8),
-                Text('Type: ${actionList[_selectedIndex].type}'),
-                const SizedBox(height: 8),
-                Text('Concern: ${actionList[_selectedIndex].concern}'),
+                if (actionList.isEmpty)
+                  const Text('No Actions')
+                else ...[
+                  Text('ID: ${actionList[_selectedIndex].id}'),
+                  const SizedBox(height: 8),
+                  Text('Name: ${actionList[_selectedIndex].name}'),
+                  const SizedBox(height: 8),
+                  Text('Type: ${actionList[_selectedIndex].type}'),
+                  const SizedBox(height: 8),
+                  Text('Concern: ${actionList[_selectedIndex].concern}'),
+                ]
               ],
             ),
           ),
@@ -806,19 +1005,55 @@ class _ActionView extends State<ActionView> {
             children: [
               ElevatedButton(
                   onPressed: () {
-                    // TODO: Show some actions
+                    setState(() {
+                      actionList.removeAt(_selectedIndex);
+                      // Remove from db
+                      var db = DBHelper();
+                      db.deleteAction(_selectedIndex);
+                      _selectedIndex = 0;
+                    });
+                    // Show A SnackBar
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Account Banned'),
+                      ),
+                    );
                   },
                   child: const Text('Ban')),
               const SizedBox(height: 8),
               ElevatedButton(
                   onPressed: () {
-                    // TODO: Show some actions
+                    setState(() {
+                      actionList.removeAt(_selectedIndex);
+                      // Remove from db
+                      var db = DBHelper();
+                      db.deleteAction(_selectedIndex);
+                      _selectedIndex = 0;
+                    });
+                    // Show A SnackBar
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Account Suspended'),
+                      ),
+                    );
                   },
                   child: const Text('Suspend')),
               const SizedBox(height: 8),
               ElevatedButton(
                   onPressed: () {
-                    // TODO: Show some actions
+                    setState(() {
+                      actionList.removeAt(_selectedIndex);
+                      // Remove from db
+                      var db = DBHelper();
+                      db.deleteAction(_selectedIndex);
+                      _selectedIndex = 0;
+                    });
+                    // Show A SnackBar
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Action Ignored'),
+                      ),
+                    );
                   },
                   child: const Text('Ignore'))
             ],
@@ -841,4 +1076,24 @@ class NeededAction {
   final String name;
   final String type;
   final String concern;
+}
+
+// A settings menu that has options such as logout and theme
+class SettingsView extends StatefulWidget {
+  const SettingsView({Key? key}) : super(key: key);
+
+  @override
+  State<SettingsView> createState() => _SettingsView();
+}
+
+class _SettingsView extends State<SettingsView> {
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        const Text('Settings'),
+        ElevatedButton(onPressed: () {}, child: const Text('Logout'))
+      ],
+    );
+  }
 }

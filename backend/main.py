@@ -18,6 +18,7 @@ db = SessionLocal()
 
 app = FastAPI()
 
+# Authentication scheme
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 # A dictionary containing membor_body objects key is memberid
@@ -41,7 +42,7 @@ memUsers = {
     3: "member3"
 }
 
-# TODO:Implement organization similar to others
+# Data structures to store active users
 organizations = []
 donors = {}
 members = {}
@@ -117,6 +118,7 @@ def handle_rating_update(rate: int, user_id: int):
     db.commit()
     memFlags[user_id].rating_update.set()
 
+# Find the id of the current user
 def get_current_user(token: str = Depends(oauth2_scheme)):
     user = None
     for userId, user_token in orgUsers.items():
@@ -127,38 +129,41 @@ def get_current_user(token: str = Depends(oauth2_scheme)):
         raise HTTPException(status_code=401, detail="Invalid authentication credentials")
     return user
 
+# Get orgniazation by its id
 def get_organization_by_id(org_id: int) -> organization: 
     for org in organizations:
-        # print(org.id)
         if org.id == org_id:
             return org
     return None
 
-
-
+# Get the next id for a request
 def get_next_id_org(user_id):
 
     if len(get_organization_by_id(user_id).requests) == 0:
         return 1
     return get_organization_by_id(user_id).requests[-1].id + 1
 
+# Get the next id for a donor
 def get_next_id_don(user_id):
         if len(donors[user_id].requests) == 0:
             return 1
         return donors[user_id].requests[-1].id + 1
 
+# Get the next id for a member
 def find_the_index(user_id, id):
     for i in range(len(get_organization_by_id(user_id).requests)):
         if get_organization_by_id(user_id).requests[i].id == id:
             return i
     return -1
 
+# Find the index of a a request in a donor
 def find_the_index_donor(user_id, id):
     for i in range(len(donors[user_id].requests)):
         if donors[user_id].requests[i].id == id:
             return i
     return -1
 
+# Get the current donor id by its token
 def get_current_donUser(token: str = Depends(oauth2_scheme)):
     user = None
     for userId, user_token in donUsers.items():
@@ -169,6 +174,7 @@ def get_current_donUser(token: str = Depends(oauth2_scheme)):
         raise HTTPException(status_code=401, detail="Invalid authentication credentials")
     return user
 
+# Get the currtent memeber id by its token
 def get_current_memUser(token: str = Depends(oauth2_scheme)):
     user = None
     for userId, user_token in memUsers.items():
@@ -192,6 +198,7 @@ async def root():
 
 #-------------------------------Organization---------------------------------------------------------------
 
+# Load an organization into the organization list
 @app.post("/add_organization/")
 async def add_organization(user_id: int = Depends(get_current_user)):
     if user_id in [o.id for o in organizations]:
@@ -647,6 +654,7 @@ async def add_rating(rate: int, background_tasks: BackgroundTasks, user_id: int 
     return {"message": "Your rate added to the donor"}
     
 
+# Connection to send member's delivery to the client
 @app.websocket("/memberdelivery")
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()

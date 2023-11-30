@@ -8,6 +8,7 @@ from dateutil.parser import parse
 
 Base = declarative_base()
 
+# ORM for database tables 
 class MemberSQL(Base):
     __tablename__ = "member"
 
@@ -42,7 +43,7 @@ class RatingSQL(Base):
 
 
 
-# Request should have a body with the following fields
+# Request body with the following fields
         # A unique id for each request
         # A string to indicate the name of donor (by default it is anonymous)
         # An integer to indicate a category
@@ -84,6 +85,7 @@ class delivery_body(BaseModel):
             "time": self.time.isoformat() # Convert datetime to string in ISO 8601 format
         }
 
+# For post requests 
 class member_body(BaseModel):
     id: int
     name: str

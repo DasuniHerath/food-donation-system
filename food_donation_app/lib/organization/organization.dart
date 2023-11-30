@@ -3,9 +3,10 @@ import 'package:provider/provider.dart';
 import 'package:web_socket_channel/io.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'dart:io';
+import '../chat.dart';
 
 class OrganizationApp extends StatelessWidget {
+  // Getting token for autherization and hosturl for conect to server
   const OrganizationApp({
     super.key,
     required this.token,
@@ -18,11 +19,12 @@ class OrganizationApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
       create: (context) => OrganizationAppState(token: token, hosturl: hosturl),
-      child: const OrgNavigationBar(),
+      child: const OrgNavigationBar(), // Create the navigation bar
     );
   }
 }
 
+// Keep the state of the organization app
 class OrganizationAppState extends ChangeNotifier {
   OrganizationAppState({
     required this.token,
@@ -32,19 +34,23 @@ class OrganizationAppState extends ChangeNotifier {
   final String token;
   final String hosturl;
 
+  // Keep the status of websocket connections
   bool isOrgHistoryConnected = false;
   bool isOrgRequestsConnected = false;
   bool isOrgMembersConnected = false;
 
-  late IOWebSocketChannel orgHistoryChannel;
-  late IOWebSocketChannel orgRequestsChannel;
-  late IOWebSocketChannel orgMembersChannel;
+  // Websocket channels
+  late IOWebSocketChannel orgHistoryChannel; // For history of requests
+  late IOWebSocketChannel orgRequestsChannel; // For food requests
+  late IOWebSocketChannel orgMembersChannel; // For member list
 
+  // Lists to populate by retrived informations from websocket connections
   var history = <Request>[];
   var requests = <Request>[];
   var employees = <Employee>[];
   var donations = <Donation>[];
 
+  // Create the relavent urls with the given host url
   Uri getUrl(int num) {
     switch (num) {
       case 1:
@@ -60,6 +66,7 @@ class OrganizationAppState extends ChangeNotifier {
     }
   }
 
+  // Create the relavent urls with the given host url and a variable in query path
   Uri getUrlWithId(int num, int id) {
     switch (num) {
       case 1:
@@ -73,6 +80,7 @@ class OrganizationAppState extends ChangeNotifier {
     }
   }
 
+  // Connect the websocket connection for history
   void connectOrgHistory() async {
     // connect to websocket only if aleady not connected
     if (isOrgHistoryConnected) {
@@ -82,6 +90,7 @@ class OrganizationAppState extends ChangeNotifier {
     orgHistoryChannel = IOWebSocketChannel.connect(getUrl(1));
     // wait until orgHistoryChannel connected and write a message to the socket
     await orgHistoryChannel.ready;
+
     // Write a message to the socket
     orgHistoryChannel.sink.add(token);
     isOrgHistoryConnected = true;
@@ -90,12 +99,14 @@ class OrganizationAppState extends ChangeNotifier {
     });
   }
 
+  // Rewrite the history list with the new data
   void updateHistory(String message) {
     List<dynamic> jsonData = jsonDecode(message);
     history = jsonData.map((data) => Request.fromJson(data)).toList();
     notifyListeners();
   }
 
+  // Connect the websocket connection for food requests
   void connectOrgRequests() async {
     // connect to websocket only if aleady not connected
     if (isOrgRequestsConnected) {
@@ -103,6 +114,7 @@ class OrganizationAppState extends ChangeNotifier {
     }
     orgRequestsChannel = IOWebSocketChannel.connect(getUrl(2));
     await orgRequestsChannel.ready;
+
     // Write a message to the socket
     orgRequestsChannel.sink.add(token);
     isOrgRequestsConnected = true;
@@ -111,12 +123,14 @@ class OrganizationAppState extends ChangeNotifier {
     });
   }
 
+  // Rewrite the requests list with the new data
   void updateRequests(String message) {
     List<dynamic> jsonData = jsonDecode(message);
     requests = jsonData.map((data) => Request.fromJson(data)).toList();
     notifyListeners();
   }
 
+  // Connect the websocket connection for members
   void connectOrgMembers() async {
     if (isOrgMembersConnected) {
       return;
@@ -131,12 +145,14 @@ class OrganizationAppState extends ChangeNotifier {
     });
   }
 
+  // Rewrite the employees list with the new data
   void updateMembers(String message) {
     List<dynamic> jsonData = jsonDecode(message);
     employees = jsonData.map((data) => Employee.fromJson(data)).toList();
     notifyListeners();
   }
 
+  // Add a new request
   void addRequest(String category, int amount, String comAddress) {
     // Dictionary to convert category name to category id
     var categoryDict = {
@@ -148,6 +164,7 @@ class OrganizationAppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  // Send a new request to the server
   Future<http.Response> addRequestToServer(
       int category, int amount, String comAddress) {
     return http.post(getUrl(4),
@@ -164,6 +181,7 @@ class OrganizationAppState extends ChangeNotifier {
         }));
   }
 
+  // Cancel a request
   Future<http.Response> cancelRequest(int id) async {
     final http.Response response = await http.delete(
       getUrlWithId(1, id),
@@ -175,6 +193,7 @@ class OrganizationAppState extends ChangeNotifier {
     return response;
   }
 
+  // Add a new member
   Future<http.Response> addMember(int id) {
     return http.post(
       getUrlWithId(2, id),
@@ -185,6 +204,7 @@ class OrganizationAppState extends ChangeNotifier {
     );
   }
 
+  // Fire a member
   Future<http.Response> fireMember(int id) async {
     final http.Response response = await http.delete(
       getUrlWithId(3, id),
@@ -197,6 +217,7 @@ class OrganizationAppState extends ChangeNotifier {
   }
 }
 
+// A navigation bar to navigate between pages
 class OrgNavigationBar extends StatefulWidget {
   const OrgNavigationBar({super.key});
 
@@ -212,14 +233,48 @@ class _OrgNavigationBarState extends State<OrgNavigationBar> {
     return Scaffold(
       // A setting button in top right corner
       appBar: AppBar(
+        automaticallyImplyLeading: false,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.settings),
-            iconSize: 40,
-            onPressed: () {
-              // Add your settings functionality here
-            },
+          SafeArea(
+            child: IconButton(
+              onPressed: () {},
+              icon: const Icon(Icons.chat),
+              iconSize: 40,
+            ),
           ),
+          const SizedBox(width: 8),
+          SafeArea(
+            child: IconButton(
+              icon: const Icon(Icons.settings),
+              iconSize: 40,
+              onPressed: () {
+                // Add your settings functionality here
+                showDialog(
+                  context: context,
+                  builder: (context) {
+                    return AlertDialog(
+                      content: const Text('Do you want to logout'),
+                      actions: [
+                        TextButton(
+                          onPressed: () {
+                            Navigator.pop(context);
+                          },
+                          child: const Text('No'),
+                        ),
+                        TextButton(
+                          onPressed: () {
+                            Navigator.pop(context);
+                            Navigator.pop(context);
+                          },
+                          child: const Text('Yes'),
+                        ),
+                      ],
+                    );
+                  },
+                );
+              },
+            ),
+          )
         ],
       ),
       bottomNavigationBar: NavigationBar(
@@ -234,7 +289,8 @@ class _OrgNavigationBarState extends State<OrgNavigationBar> {
             icon: Icon(Icons.fastfood),
             label: 'Request',
           ),
-          NavigationDestination(icon: Icon(Icons.favorite), label: 'Donate'),
+          NavigationDestination(
+              icon: Icon(Icons.favorite), label: 'Collectable'),
           NavigationDestination(
             icon: Icon(Icons.history),
             label: 'History',
@@ -264,7 +320,7 @@ class _OrgNavigationBarState extends State<OrgNavigationBar> {
   }
 }
 
-// A page containing Requests
+// A page containing Requests and New Request button
 class RequestPage extends StatelessWidget {
   const RequestPage({super.key});
 
@@ -312,6 +368,7 @@ class RequestPage extends StatelessWidget {
   }
 }
 
+// A page containing History
 class HistoryPage extends StatelessWidget {
   const HistoryPage({super.key});
 
@@ -334,19 +391,22 @@ class HistoryPage extends StatelessWidget {
   }
 }
 
+// A page containing Employees and New Employee button
 class EmployeesPage extends StatelessWidget {
   const EmployeesPage({super.key});
 
   @override
   Widget build(BuildContext context) {
-    var appState = context.watch<OrganizationAppState>();
-    appState.connectOrgMembers();
+    var appState = context
+        .watch<OrganizationAppState>(); // Watch the app state for changes
+    appState.connectOrgMembers(); // Connect to websocket
 
     return Column(
       children: [
         Expanded(
           child: ListView(
             children: [
+              // Create a tile for each employee
               for (var employee in appState.employees)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 8.0),
@@ -367,7 +427,8 @@ class EmployeesPage extends StatelessWidget {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                        builder: (context) => NewEmployee(appState: appState)),
+                        builder: (context) => NewEmployee(
+                            appState: appState)), // New employee page
                   );
                 },
                 child: const Icon(Icons.add),
@@ -380,8 +441,9 @@ class EmployeesPage extends StatelessWidget {
   }
 }
 
+// A tile to display key details of a request in the request page
 class RequestTile extends StatelessWidget {
-  final Request request;
+  final Request request; // Request object
 
   const RequestTile({
     Key? key,
@@ -390,10 +452,11 @@ class RequestTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // watch the app state
-    var appState = context.watch<OrganizationAppState>();
+    var appState = context
+        .watch<OrganizationAppState>(); // Watch the app state for changes
 
     return InkWell(
+      // Open a bottom sheet when tapped
       onTap: () {
         showModalBottomSheet(
             context: context,
@@ -476,8 +539,9 @@ class RequestTile extends StatelessWidget {
   }
 }
 
+// A tile to display key details of a past request in the history page
 class HistoryTile extends StatelessWidget {
-  final Request request;
+  final Request request; // Request object
 
   const HistoryTile({
     Key? key,
@@ -487,6 +551,7 @@ class HistoryTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return InkWell(
+      // Open a bottom sheet when tapped
       onTap: () {
         showModalBottomSheet(
             context: context,
@@ -541,8 +606,9 @@ class HistoryTile extends StatelessWidget {
   }
 }
 
+// A tile to display key details of an employee in the employee page
 class EmployeeTile extends StatelessWidget {
-  final Employee employee;
+  final Employee employee; // Employee object
 
   const EmployeeTile({
     Key? key,
@@ -554,6 +620,7 @@ class EmployeeTile extends StatelessWidget {
     var appState = context.watch<OrganizationAppState>();
 
     return InkWell(
+      // Open a bottom sheet when tapped
       onTap: () {
         showModalBottomSheet(
             context: context,
@@ -592,13 +659,6 @@ class EmployeeTile extends StatelessWidget {
                 ],
               ),
             ),
-            // TODO: Add status
-            // Column(Todo
-            //   crossAxisAlignment: CrossAxisAlignment.end,
-            //   children: [
-            //     Text(employee.status),
-            //   ],
-            // )
           ],
         ),
       ),
@@ -606,9 +666,10 @@ class EmployeeTile extends StatelessWidget {
   }
 }
 
+// A bottom sheet to display full details of a request and a cancel button
 class RequestBottomSheet extends StatelessWidget {
-  final Request request;
-  final OrganizationAppState appState;
+  final Request request; // Request object
+  final OrganizationAppState appState; // App state
 
   const RequestBottomSheet({
     super.key,
@@ -618,9 +679,6 @@ class RequestBottomSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // watch the app state
-    // var appState = context.watch<OrganizationAppState>();
-
     return SizedBox(
       height: 250,
       child: Padding(
@@ -679,6 +737,13 @@ class RequestBottomSheet extends StatelessWidget {
                 ElevatedButton.icon(
                   onPressed: () {
                     // open chat with restaurant
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (context) => ChatPage(
+                                title: request.restaurantName,
+                              )),
+                    );
                   },
                   label:
                       const Text('Donor', style: TextStyle(color: Colors.blue)),
@@ -689,7 +754,14 @@ class RequestBottomSheet extends StatelessWidget {
                 ),
                 ElevatedButton.icon(
                   onPressed: () {
-                    // open chat with restaurant
+                    // open chat with member
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (context) => ChatPage(
+                                title: request.id.toString(),
+                              )),
+                    );
                   },
                   label: const Text(
                     'Member',
@@ -724,8 +796,9 @@ class RequestBottomSheet extends StatelessWidget {
   }
 }
 
+// A bottom sheet to display full details of a past request
 class HistoryBottomSheet extends StatelessWidget {
-  final Request request;
+  final Request request; // Request object
 
   const HistoryBottomSheet({
     super.key,
@@ -734,8 +807,6 @@ class HistoryBottomSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // watch the app state
-
     return SizedBox(
       height: 200,
       child: Padding(
@@ -775,7 +846,6 @@ class HistoryBottomSheet extends StatelessWidget {
                 ),
               ],
             ),
-            // button
             const SizedBox(height: 16),
           ],
         ),
@@ -784,9 +854,10 @@ class HistoryBottomSheet extends StatelessWidget {
   }
 }
 
+// A bottom sheet to display full details of an employee and a fire button
 class EmployeeBottomSheet extends StatelessWidget {
-  final Employee employee;
-  final OrganizationAppState appState;
+  final Employee employee; // Employee object
+  final OrganizationAppState appState; // App state
 
   const EmployeeBottomSheet({
     super.key,
@@ -796,8 +867,6 @@ class EmployeeBottomSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // watch the app state
-
     return SizedBox(
       height: 200,
       child: Padding(
@@ -859,6 +928,7 @@ class EmployeeBottomSheet extends StatelessWidget {
   }
 }
 
+// A class to represent a request
 class Request {
   final int id;
   final String date;
@@ -920,6 +990,7 @@ class Request {
   }
 }
 
+// A class to represent an employee
 class Employee {
   final int id;
   final String name;
@@ -941,6 +1012,7 @@ class Employee {
     '1': 'Active',
   };
 
+  // Function to convert JSON data to Employee object
   factory Employee.fromJson(Map<String, dynamic> json) {
     return Employee(
         id: json['id'],
@@ -953,7 +1025,7 @@ class Employee {
 
 // Create new request
 class NewRequest extends StatefulWidget {
-  final OrganizationAppState appState;
+  final OrganizationAppState appState; // App state
   const NewRequest({super.key, required this.appState});
 
   @override
@@ -962,13 +1034,16 @@ class NewRequest extends StatefulWidget {
 
 class _NewRequestState extends State<NewRequest> {
   // Create text field controllers
-  TextEditingController amountController = TextEditingController();
-  TextEditingController comAddressController = TextEditingController();
+  TextEditingController amountController = TextEditingController(); // Amount
+  TextEditingController comAddressController =
+      TextEditingController(); // Community address
 
-  String dropdownValue = 'Rice';
+  String dropdownValue =
+      'Rice'; // Initial value of dropdown menu to select category
 
-  bool isCheckBoxSelected = false;
+  bool isCheckBoxSelected = false; // Status of the check box
 
+  // Map icons to category names
   Map<String, Icon> categoryDict = {
     'Rice': const Icon(Icons.rice_bowl, color: Colors.green),
     'Bread': const Icon(Icons.breakfast_dining, color: Colors.brown),
@@ -991,6 +1066,7 @@ class _NewRequestState extends State<NewRequest> {
                   width: 500,
                   child: DropdownButtonHideUnderline(
                     child: DropdownButton<String>(
+                      // Dropdown menu to select category
                       value: dropdownValue,
                       onChanged: (String? newValue) {
                         setState(() {
@@ -1020,6 +1096,7 @@ class _NewRequestState extends State<NewRequest> {
             Padding(
               padding: const EdgeInsets.all(8.0),
               child: TextField(
+                // Text field to enter amount
                 controller: amountController,
                 decoration: const InputDecoration(
                   border: OutlineInputBorder(),
@@ -1032,6 +1109,7 @@ class _NewRequestState extends State<NewRequest> {
             Row(
               children: [
                 Checkbox(
+                  // Checkbox to select if the order is directly to the community
                   value: isCheckBoxSelected,
                   onChanged: (bool? value) {
                     setState(() {
@@ -1042,6 +1120,7 @@ class _NewRequestState extends State<NewRequest> {
                 const Text('Order directly to the community'),
               ],
             ),
+            // Display the address text field if the checkbox is selected
             Visibility(
                 visible: isCheckBoxSelected,
                 child: const SizedBox(
@@ -1069,7 +1148,7 @@ class _NewRequestState extends State<NewRequest> {
                     int.parse(amountController.text),
                     isCheckBoxSelected ? comAddressController.text : 'default');
 
-                Navigator.pop(context);
+                Navigator.pop(context); // Go back to the previous page
               },
               child: const Text('Submit'),
             ),
@@ -1090,9 +1169,7 @@ class NewEmployee extends StatefulWidget {
 }
 
 class _NewEmployeeState extends State<NewEmployee> {
-  // Create text fied controllers
-
-  TextEditingController idController = TextEditingController();
+  TextEditingController idController = TextEditingController(); // Member ID
 
   @override
   Widget build(BuildContext context) {
@@ -1112,8 +1189,8 @@ class _NewEmployeeState extends State<NewEmployee> {
               ),
             ),
             ElevatedButton(
+              // Add employee
               onPressed: () {
-                // Add employee
                 widget.appState.addMember(int.parse(idController.text));
                 Navigator.pop(context);
               },
@@ -1126,12 +1203,13 @@ class _NewEmployeeState extends State<NewEmployee> {
   }
 }
 
+// Donation class to represent a donation listed by donors
 class Donation {
   final String foodName;
   final String category;
   final int amount;
   final String time;
-  final File? image;
+  final ImageProvider? image;
 
   Donation({
     required this.foodName,
@@ -1142,6 +1220,7 @@ class Donation {
   });
 }
 
+// Display list of donations
 class DonationPage extends StatelessWidget {
   const DonationPage({super.key});
   @override
@@ -1179,18 +1258,20 @@ class DonationPage extends StatelessWidget {
   }
 }
 
+// Tile to display key details of a donation
 class DonationTile extends StatelessWidget {
   const DonationTile({
     super.key,
     required this.donation,
   });
 
-  final Donation donation;
+  final Donation donation; // Donation object
   @override
   Widget build(BuildContext context) {
     var app = context.watch<OrganizationAppState>();
     return InkWell(
       onTap: () {
+        // Open a bottom sheet when tapped
         showModalBottomSheet(
             context: context,
             builder: (context) => DonationBottomSheet(
@@ -1257,8 +1338,8 @@ class DonationTile extends StatelessWidget {
                   ),
                   child: Padding(
                     padding: const EdgeInsets.all(8.0),
-                    child: Image.file(
-                      donation.image!,
+                    child: Image(
+                      image: donation.image!,
                       width: 150,
                       height: 150,
                     ),
@@ -1273,12 +1354,13 @@ class DonationTile extends StatelessWidget {
   }
 }
 
+// Bottom sheet to display full details of a donation and a accept button
 class DonationBottomSheet extends StatelessWidget {
   const DonationBottomSheet(
       {super.key, required this.donation, required this.appState});
 
-  final Donation donation;
-  final OrganizationAppState appState;
+  final Donation donation; // Donation object
+  final OrganizationAppState appState; // App state
 
   @override
   Widget build(BuildContext context) {
@@ -1293,7 +1375,7 @@ class DonationBottomSheet extends StatelessWidget {
             height: 200, // replace with your value
             decoration: BoxDecoration(
               image: DecorationImage(
-                image: FileImage(donation.image!),
+                image: donation.image!,
                 fit: BoxFit.cover,
               ),
             ),
@@ -1339,9 +1421,10 @@ class DonationBottomSheet extends StatelessWidget {
                 padding: const EdgeInsets.all(16.0),
                 child: ElevatedButton(
                     onPressed: () {
+                      // Accept donation
                       Navigator.pop(context);
                     },
-                    child: const Text('Cancel')),
+                    child: const Text('Accept')),
               ),
             ],
           ),

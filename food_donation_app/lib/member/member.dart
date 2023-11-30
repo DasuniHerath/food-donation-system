@@ -3,37 +3,43 @@ import 'package:provider/provider.dart';
 import 'package:web_socket_channel/io.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import '../chat.dart';
 
 class MemberApp extends StatelessWidget {
   const MemberApp({super.key, required this.token, required this.hosturl});
 
-  final String token;
-  final String hosturl;
+  final String token; // Token for authentication with the server
+  final String hosturl; // Host url of the server
 
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
+      // Create an app state
       create: (context) => MemberAppState(token: token, hosturl: hosturl),
-      child: const OrgNavigationBar(),
+      child: const OrgNavigationBar(), // Create the navigation bar
     );
   }
 }
 
+// App state for the member app
 class MemberAppState extends ChangeNotifier {
   MemberAppState({required this.token, required this.hosturl});
 
-  final String token;
-  final String hosturl;
+  final String token; // Token for authentication with the server
+  final String hosturl; // Host url of the server
 
+  // Store delivery details got from the server
   var deliveries = <Delivery>[];
 
+  // Websocket channel for delivery
   late IOWebSocketChannel wsDeliveryChannel;
 
-  bool iswsDeliveryConnected = false;
-  bool isStatusGot = false;
+  bool iswsDeliveryConnected = false; // Check if websocket is connected
+  bool isStatusGot = false; // Check if status is got from the server
 
-  bool status = false;
+  bool status = false; // Status of the member (active/inactive)
 
+  // Create the relevant urls with given host url
   Uri getUrl(int num) {
     switch (num) {
       case 1:
@@ -47,35 +53,41 @@ class MemberAppState extends ChangeNotifier {
     }
   }
 
+  // Create the relevant urls with given host url and id as a query parameter
   Uri getUrlWithId(int id) {
     return Uri.parse('http://$hosturl/update_delivery/?newState=$id');
   }
 
+  // Create the relevant urls with given host url and state as a query parameter
   Uri getUrlWithState(bool state) {
     return Uri.parse('http://$hosturl/change_status/?status=$state');
   }
 
+  // Create the relevant urls with given host url and rate  as a query parameter
   Uri getUrlWithRate(int rate) {
     return Uri.parse('http://$hosturl/add_rating/?rate=$rate');
   }
 
+  // Connect to the websocket channel for delivery
   void connectwsDelivery() async {
     if (iswsDeliveryConnected) return;
     wsDeliveryChannel = IOWebSocketChannel.connect(getUrl(1));
     await wsDeliveryChannel.ready;
-    wsDeliveryChannel.sink.add(token);
+    wsDeliveryChannel.sink.add(token); // Send token to the server
     iswsDeliveryConnected = true;
     wsDeliveryChannel.stream.listen((message) {
       updateDelivry(message);
     });
   }
 
+  // Update delivery details with the message got from the server
   void updateDelivry(String message) {
     List<dynamic> jsonData = jsonDecode(message);
     deliveries = jsonData.map((data) => Delivery.fromJson(data)).toList();
     notifyListeners();
   }
 
+  // Change the status of the member in the server
   Future<http.Response> setStatusActive(bool status) async {
     return http.put(
       getUrlWithState(status),
@@ -86,6 +98,7 @@ class MemberAppState extends ChangeNotifier {
     );
   }
 
+  // Update member status with the status got from the server
   Future<http.Response> getStatus() async {
     return await http.get(
       getUrl(2),
@@ -96,6 +109,7 @@ class MemberAppState extends ChangeNotifier {
     );
   }
 
+  // Reject a delivery with the reason
   Future<http.Response> rejectDelivery(String reason) async {
     return http.delete(
       getUrl(3),
@@ -109,6 +123,7 @@ class MemberAppState extends ChangeNotifier {
     );
   }
 
+  // Update delivery status with the new state
   Future<http.Response> updateDelivetyState(int newState) async {
     return http.put(
       getUrlWithId(newState),
@@ -119,6 +134,7 @@ class MemberAppState extends ChangeNotifier {
     );
   }
 
+  // Add rating at the end of the delivery
   Future<http.Response> addRating(int rate) async {
     return http.put(
       getUrlWithRate(rate),
@@ -130,6 +146,7 @@ class MemberAppState extends ChangeNotifier {
   }
 }
 
+// A navigation bar with two destinations
 class OrgNavigationBar extends StatefulWidget {
   const OrgNavigationBar({super.key});
 
@@ -138,13 +155,38 @@ class OrgNavigationBar extends StatefulWidget {
 }
 
 class _OrgNavigationBarState extends State<OrgNavigationBar> {
-  int currentPageIndex = 0;
+  int currentPageIndex = 0; // Current page index
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      appBar: AppBar(
+        automaticallyImplyLeading: false,
+        actions: [
+          SafeArea(
+            child: IconButton(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    // Navigate to chat list page
+                    builder: (context) => const ChatList(
+                      title: 'Chat',
+                      type: 'Member',
+                    ),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.chat),
+              iconSize: 40,
+            ),
+          ),
+          const SizedBox(width: 8),
+        ],
+      ),
       bottomNavigationBar: NavigationBar(
         onDestinationSelected: (int index) {
+          // Change the current page index
           setState(() {
             currentPageIndex = index;
           });
@@ -162,24 +204,23 @@ class _OrgNavigationBarState extends State<OrgNavigationBar> {
         ],
       ),
       body: <Widget>[
-        Container(alignment: Alignment.center, child: const RequestPage()),
-        Container(alignment: Alignment.center, child: const ProfilePage()),
+        Container(alignment: Alignment.center, child: const DeliveryPage()),
       ][currentPageIndex >= 0 && currentPageIndex < 2 ? currentPageIndex : 0],
     );
   }
 }
 
-// A page containing Requests
-class RequestPage extends StatefulWidget {
-  const RequestPage({super.key});
+// A page containing delivery information and delivery status change button
+class DeliveryPage extends StatefulWidget {
+  const DeliveryPage({super.key});
 
   @override
-  State<RequestPage> createState() => _RequestPageState();
+  State<DeliveryPage> createState() => _DeliveryPageState();
 }
 
-class _RequestPageState extends State<RequestPage> {
-  var toggle = false;
-  var deliveryState = 'Collected';
+class _DeliveryPageState extends State<DeliveryPage> {
+  var toggle = false; // Toggle switch between active and inactive
+  var deliveryState = 'Collected'; // Delivery state
 
   void initToggle() async {
     var appState = context.read<MemberAppState>();
@@ -189,18 +230,6 @@ class _RequestPageState extends State<RequestPage> {
       toggle = jsonData['status'];
     }
   }
-
-  // A dictionary to convert status name to status id
-  static const statusDict = {
-    'Waiting': 0,
-    'Found': 1,
-    'Rejected': 2,
-    'Cancelled': 3,
-    'On the way': 4,
-    'Collected': 5,
-    'Delivering': 6,
-    'Delivered': 7,
-  };
 
   // A dictionary to convert status id to status name
   static const statusDictReverse = {
@@ -224,6 +253,7 @@ class _RequestPageState extends State<RequestPage> {
     // If delivery state is 7 (Delivered), show rating page
     return Column(
       children: [
+        // If delivery state is 7 (Delivered), show rating page
         if (appState.deliveries.isNotEmpty &&
             appState.deliveries[0].status == 7) ...[
           SafeArea(
@@ -265,7 +295,7 @@ class _RequestPageState extends State<RequestPage> {
                   Padding(
                     padding: const EdgeInsets.only(bottom: 8.0),
                     child: DonorTile(
-                      request: request,
+                      delivery: request,
                       appsState: appState,
                     ),
                   ),
@@ -340,8 +370,9 @@ class _RequestPageState extends State<RequestPage> {
   }
 }
 
+// The dialog that pops up when the delivery status change button is pressed
 class DeliveryOptionsDialog extends StatelessWidget {
-  final String option;
+  final String option; // The option that is going to be changed
 
   const DeliveryOptionsDialog({super.key, required this.option});
 
@@ -364,34 +395,23 @@ class DeliveryOptionsDialog extends StatelessWidget {
   }
 }
 
-class ProfilePage extends StatelessWidget {
-  const ProfilePage({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    // return an empty container for now
-    return Container();
-  }
-}
-
+// Display key details of a delivery
 class DonorTile extends StatelessWidget {
-  final Delivery request;
-  final MemberAppState appsState;
+  final Delivery delivery; // Delivery details
+  final MemberAppState appsState; // App state
 
   const DonorTile({
     Key? key,
-    required this.request,
+    required this.delivery,
     required this.appsState,
   }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    // watch the app state
-    // var appState = context.watch<MemberAppState>();
-
     return InkWell(
       onTap: () {
         Navigator.push(
+          // Navigate to reject page
           context,
           MaterialPageRoute(
             builder: (context) => RejectPage(
@@ -430,7 +450,7 @@ class DonorTile extends StatelessWidget {
                   ),
                   Text(
                     // Donor address:
-                    request.donorAddress,
+                    delivery.donorAddress,
                     style: const TextStyle(
                       fontSize: 14,
                     ),
@@ -446,14 +466,14 @@ class DonorTile extends StatelessWidget {
                   ),
                   Text(
                     // Donor address:
-                    request.communityAddress,
+                    delivery.communityAddress,
                     style: const TextStyle(
                       fontSize: 14,
                     ),
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    request.category,
+                    delivery.category,
                     style: const TextStyle(
                         fontSize: 14, fontWeight: FontWeight.bold),
                   ),
@@ -463,11 +483,11 @@ class DonorTile extends StatelessWidget {
             Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                request.icon,
+                delivery.icon,
                 const SizedBox(width: 8),
                 // Change font color based on status(wainting = black, open = green, closed = red)
                 Text(
-                  request.amount.toString(),
+                  delivery.amount.toString(),
                   style: const TextStyle(
                     color: Colors.deepOrange,
                     fontSize: 14,
@@ -482,6 +502,7 @@ class DonorTile extends StatelessWidget {
   }
 }
 
+// Represents a delivery
 class Delivery {
   final String date;
   final String time;
@@ -541,8 +562,9 @@ class Delivery {
   }
 }
 
+// Select a reason for rejecting a delivery
 class RejectPage extends StatefulWidget {
-  final MemberAppState appState;
+  final MemberAppState appState; // App state
   const RejectPage({super.key, required this.appState});
 
   @override
@@ -588,6 +610,7 @@ class RejectPageState extends State<RejectPage> {
               )
             ],
             const SizedBox(height: 16),
+            // Submit button
             ElevatedButton(
               onPressed: () {
                 if (dropdownValue == 'Other') {
@@ -606,8 +629,9 @@ class RejectPageState extends State<RejectPage> {
   }
 }
 
+// Give a rating for the delivery by selecting a heart out of 5 hearts
 class HeartRating extends StatefulWidget {
-  final MemberAppState appState;
+  final MemberAppState appState; // App state
   const HeartRating({super.key, required this.appState});
 
   @override
@@ -615,7 +639,7 @@ class HeartRating extends StatefulWidget {
 }
 
 class HeartRatingState extends State<HeartRating> {
-  int _rating = 0;
+  int _rating = 0; // Rating
 
   @override
   Widget build(BuildContext context) {
@@ -636,6 +660,7 @@ class HeartRatingState extends State<HeartRating> {
           const SizedBox(height: 10),
           Row(
             mainAxisSize: MainAxisSize.min,
+            // Create silectable 5 heart icons
             children: List.generate(5, (index) {
               return IconButton(
                 iconSize: 35,
